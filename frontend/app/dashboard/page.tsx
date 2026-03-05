@@ -18,6 +18,7 @@ export default function DashboardPage() {
     const [results, setResults] = useState<LocatorResult[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState('');
+    const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
     useEffect(() => {
         if (!isLoading && !user) {
@@ -53,10 +54,13 @@ export default function DashboardPage() {
         }
     };
 
-    const copyToClipboard = (text: string) => {
+    const copyToClipboard = (text: string, idx: number) => {
         navigator.clipboard.writeText(text);
-        // Optional: show a toast or temporary success state
+        setCopiedIdx(idx);
+        setTimeout(() => setCopiedIdx(null), 2000);
     };
+
+    const isMultiLine = locatorType === 'styles' || locatorType === 'outerhtml' || locatorType === 'element';
 
     if (isLoading || !user) return <div className="p-8 text-center text-slate-400">Loading...</div>;
 
@@ -97,17 +101,19 @@ export default function DashboardPage() {
                         />
                     </div>
                     <div className="space-y-2">
-                        <label className="text-xs font-semibold text-slate-500 uppercase">Type</label>
+                        <label className="text-xs font-semibold text-slate-500 uppercase">Copy As</label>
                         <select
                             className="block w-full bg-slate-800/50 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-indigo-500 transition-all outline-none appearance-none"
                             value={locatorType}
                             onChange={(e) => setLocatorType(e.target.value)}
                         >
                             <option value="xpath">XPath</option>
-                            <option value="css">CSS Selector</option>
-                            <option value="id">ID</option>
-                            <option value="name">Name</option>
-                            <option value="class">Class</option>
+                            <option value="full_xpath">Full XPath</option>
+                            <option value="selector">Selector</option>
+                            <option value="js_path">JS Path</option>
+                            <option value="outerhtml">OuterHTML</option>
+                            <option value="element">Element</option>
+                            <option value="styles">Styles</option>
                         </select>
                     </div>
                     <div className="md:col-span-4 mt-4">
@@ -144,21 +150,27 @@ export default function DashboardPage() {
                 {results.length > 0 ? (
                     <div className="grid grid-cols-1 gap-4">
                         {results.map((res, idx) => (
-                            <div key={idx} className="glass p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 group transition-all hover:bg-white/10">
-                                <div className="flex items-center gap-3">
+                            <div key={idx} className="glass p-4 flex flex-col gap-3 group transition-all hover:bg-white/10">
+                                <div className="flex items-center justify-between">
                                     <span className="px-2 py-1 bg-slate-700 rounded text-xs text-indigo-300 font-mono">
                                         {res.tag}
                                     </span>
+                                    <button
+                                        onClick={() => copyToClipboard(res.locator, idx)}
+                                        className="bg-slate-700/50 hover:bg-indigo-500 text-slate-300 hover:text-white px-4 py-2 rounded-lg text-sm transition-all"
+                                    >
+                                        {copiedIdx === idx ? '✓ Copied!' : 'Copy'}
+                                    </button>
+                                </div>
+                                {isMultiLine ? (
+                                    <pre className="text-slate-300 text-sm font-mono bg-slate-900/50 p-3 rounded-lg overflow-x-auto whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
+                                        {res.locator}
+                                    </pre>
+                                ) : (
                                     <code className="text-slate-300 break-all text-sm font-mono">
                                         {res.locator}
                                     </code>
-                                </div>
-                                <button
-                                    onClick={() => copyToClipboard(res.locator)}
-                                    className="bg-slate-700/50 hover:bg-indigo-500 text-slate-300 hover:text-white px-4 py-2 rounded-lg text-sm transition-all"
-                                >
-                                    Copy
-                                </button>
+                                )}
                             </div>
                         ))}
                     </div>

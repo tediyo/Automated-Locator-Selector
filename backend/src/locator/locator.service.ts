@@ -22,24 +22,10 @@ export class LocatorService {
 
             const normalizedKeyword = keyword.toLowerCase();
 
-            // Scan elements and match only on direct attributes, not inherited textContent
             const elements = await page.evaluate((kw) => {
-                const results: {
-                    tag: string;
-                    id: string;
-                    name: string;
-                    placeholder: string;
-                    ariaLabel: string;
-                    className: string;
-                    directText: string;
-                    xpath: string;
-                }[] = [];
+                // --- Helper functions ---
 
-                // Focus on meaningful, interactive elements
-                const selectors = 'input, button, select, textarea, a, label, h1, h2, h3, h4, h5, h6, img, th, td, li, p, span';
-                const allElements = document.querySelectorAll(selectors);
-
-                // Helper: get only the element's own direct text (not from children)
+                // Get only the element's own direct text (not from children)
                 function getDirectText(el: Element): string {
                     let text = '';
                     for (const node of el.childNodes) {
@@ -50,30 +36,156 @@ export class LocatorService {
                     return text.trim();
                 }
 
-                // Helper: generate a precise XPath for an element
-                function getXPath(el: Element): string {
-                    if (el.id) return `//*[@id='${el.id}']`;
+                // Escape special characters for CSS selectors (Tailwind: '/', ':', etc.)
+                function escapeCssIdent(s: string): string {
+                    return s.replace(/([^\w-])/g, '\\$1');
+                }
 
-                    const parts: string[] = [];
+                // Generate Relative XPath (anchored to nearest parent with an ID)
+                function getRelativeXPath(el: Element): string {
+                    if (el.id) return `//*[@id="${el.id}"]`;
+
                     let current: Element | null = el;
+                    const path: string[] = [];
                     while (current && current !== document.documentElement) {
+                        if (current.id && current !== el) {
+                            return `//*[@id="${current.id}"]/${path.join('/')}`;
+                        }
+                        const tag = current.tagName.toLowerCase();
                         let index = 1;
                         let sibling = current.previousElementSibling;
                         while (sibling) {
                             if (sibling.tagName === current.tagName) index++;
                             sibling = sibling.previousElementSibling;
                         }
-                        const tag = current.tagName.toLowerCase();
-                        const hasSameTagSiblings = current.parentElement &&
-                            Array.from(current.parentElement.children).filter(c => c.tagName === current!.tagName).length > 1;
-
-                        parts.unshift(hasSameTagSiblings ? `${tag}[${index}]` : tag);
+                        const siblings = current.parentElement
+                            ? Array.from(current.parentElement.children).filter(c => c.tagName === current!.tagName)
+                            : [];
+                        path.unshift(siblings.length > 1 ? `${tag}[${index}]` : tag);
                         current = current.parentElement;
                     }
-                    return '/html/' + parts.join('/');
+                    return '/html/' + path.join('/');
                 }
 
+                // Generate Full XPath (absolute from /html)
+                function getFullXPath(el: Element): string {
+                    let current: Element | null = el;
+                    const path: string[] = [];
+                    while (current && current !== document.documentElement) {
+                        const tag = current.tagName.toLowerCase();
+                        let index = 1;
+                        let sibling = current.previousElementSibling;
+                        while (sibling) {
+                            if (sibling.tagName === current.tagName) index++;
+                            sibling = sibling.previousElementSibling;
+                        }
+                        const siblings = current.parentElement
+                            ? Array.from(current.parentElement.children).filter(c => c.tagName === current!.tagName)
+                            : [];
+                        path.unshift(siblings.length > 1 ? `${tag}[${index}]` : tag);
+                        current = current.parentElement;
+                    }
+                    return '/html/' + path.join('/');
+                }
+
+                // Generate CSS Selector (exact Chrome DevTools behavior)
+                function getCssSelector(el: Element): string {
+                    if (el.id) return `#${escapeCssIdent(el.id)}`;
+
+                    let current: Element | null = el;
+                    const parts: string[] = [];
+
+                    while (current && current !== document.body && current !== document.documentElement) {
+                        // If element has an ID, anchor here and stop
+                        if (current.id) {
+                            parts.unshift(`#${escapeCssIdent(current.id)}`);
+                            break;
+                        }
+
+                        const tag = current.tagName.toLowerCase();
+                        const parent = current.parentElement;
+                        let selector = tag;
+
+                        if (parent) {
+                            const siblings = Array.from(parent.children);
+                            const sameTagSiblings = siblings.filter((s: Element) => s.tagName === current!.tagName);
+
+                            if (sameTagSiblings.length > 1) {
+                                // Multiple same-tag siblings → add ALL classes
+                                if (current.className && typeof current.className === 'string') {
+                                    const classes = current.className.trim().split(/\s+/).filter(Boolean);
+                                    if (classes.length > 0) {
+                                        selector += '.' + classes.map(c => escapeCssIdent(c)).join('.');
+                                    }
+                                }
+
+                                // Check if tag+classes is still not unique
+                                const selectorClasses = typeof current.className === 'string' ? current.className : '';
+                                const stillAmbiguous = sameTagSiblings.filter((s: Element) => {
+                                    const sClasses = typeof s.className === 'string' ? s.className : '';
+                                    return sClasses === selectorClasses;
+                                });
+                                if (stillAmbiguous.length > 1) {
+                                    const childIndex = siblings.indexOf(current) + 1;
+                                    selector += `:nth-child(${childIndex})`;
+                                }
+                            }
+                            // If only one element with this tag → just use tag (no classes)
+                        }
+
+                        parts.unshift(selector);
+                        current = parent;
+                    }
+
+                    return parts.join(' > ');
+                }
+
+                // Generate JS Path
+                function getJsPath(el: Element): string {
+                    const sel = getCssSelector(el);
+                    return `document.querySelector("${sel.replace(/"/g, '\\"')}")`;
+                }
+
+                // Get computed styles
+                function getStyles(el: Element): string {
+                    const computed = window.getComputedStyle(el);
+                    const importantProps = [
+                        'display', 'position', 'width', 'height', 'margin', 'padding',
+                        'background', 'background-color', 'color', 'font-size', 'font-weight',
+                        'font-family', 'border', 'border-radius', 'box-shadow', 'opacity',
+                        'cursor', 'text-align', 'line-height', 'overflow', 'z-index',
+                        'transition', 'transform', 'flex', 'grid',
+                    ];
+                    const lines: string[] = [];
+                    for (const prop of importantProps) {
+                        const val = computed.getPropertyValue(prop);
+                        if (val && val !== 'none' && val !== 'normal' && val !== 'auto' && val !== '0px' && val !== 'static') {
+                            lines.push(`${prop}: ${val};`);
+                        }
+                    }
+                    return lines.join('\n');
+                }
+
+                // --- Scan elements ---
+                const selectors = 'input, button, select, textarea, a, label, h1, h2, h3, h4, h5, h6, img, th, td, li, p, span, div';
+                const allElements = document.querySelectorAll(selectors);
+                const results: {
+                    tag: string;
+                    directText: string;
+                    xpath: string;
+                    fullXpath: string;
+                    cssSelector: string;
+                    jsPath: string;
+                    outerHTML: string;
+                    element: string;
+                    styles: string;
+                }[] = [];
+
                 allElements.forEach((el) => {
+                    // Skip invisible elements
+                    const style = window.getComputedStyle(el);
+                    if (style.display === 'none' || style.visibility === 'hidden') return;
+
                     const id = el.id || '';
                     const name = (el as any).name || '';
                     const placeholder = (el as any).placeholder || '';
@@ -81,57 +193,59 @@ export class LocatorService {
                     const className = typeof el.className === 'string' ? el.className : '';
                     const directText = getDirectText(el);
 
-                    // Match only on the element's OWN attributes, not inherited text
-                    const matchTargets = [id, name, placeholder, ariaLabel, directText];
-                    const match = matchTargets.some(val =>
-                        val.toLowerCase().includes(kw)
-                    );
+                    const matchTargets = [id, name, placeholder, ariaLabel, className, directText];
+                    const match = matchTargets.some(val => val.toLowerCase().includes(kw));
 
                     if (match) {
+                        const outerHTML = el.outerHTML;
+
                         results.push({
                             tag: el.tagName.toLowerCase(),
-                            id,
-                            name,
-                            placeholder,
-                            ariaLabel,
-                            className,
                             directText: directText.substring(0, 60),
-                            xpath: getXPath(el),
+                            xpath: getRelativeXPath(el),
+                            fullXpath: getFullXPath(el),
+                            cssSelector: getCssSelector(el),
+                            jsPath: getJsPath(el),
+                            outerHTML: outerHTML.substring(0, 1000),
+                            element: outerHTML.substring(0, 500),
+                            styles: getStyles(el),
                         });
                     }
                 });
+
                 return results;
             }, normalizedKeyword);
 
+            // Map to the selected locator type
             const locators = elements.map(el => {
                 let locator = '';
                 switch (locatorType.toLowerCase()) {
                     case 'xpath':
-                        // Use the real computed XPath from the DOM
                         locator = el.xpath;
                         break;
-                    case 'css':
-                        if (el.id) locator = `${el.tag}#${el.id}`;
-                        else if (el.className) {
-                            const classes = el.className.split(' ').filter(Boolean);
-                            locator = `${el.tag}.${classes.join('.')}`;
-                        }
-                        else locator = el.tag;
+                    case 'full_xpath':
+                        locator = el.fullXpath;
                         break;
-                    case 'id':
-                        locator = el.id || 'N/A';
+                    case 'selector':
+                        locator = el.cssSelector;
                         break;
-                    case 'name':
-                        locator = el.name || 'N/A';
+                    case 'js_path':
+                        locator = el.jsPath;
                         break;
-                    case 'class':
-                        locator = el.className || 'N/A';
+                    case 'outerhtml':
+                        locator = el.outerHTML;
+                        break;
+                    case 'element':
+                        locator = el.element;
+                        break;
+                    case 'styles':
+                        locator = el.styles;
                         break;
                     default:
-                        locator = 'Unknown type';
+                        locator = el.xpath;
                 }
                 return { tag: el.tag, locator };
-            }).filter(l => l.locator !== 'N/A' && l.locator !== 'Unknown type' && l.locator !== '');
+            }).filter(l => l.locator && l.locator.trim() !== '');
 
             // Save to history
             const history = this.searchHistoryRepository.create({
