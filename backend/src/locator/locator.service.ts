@@ -17,7 +17,7 @@ export class LocatorService {
      * Launch a stealth browser context that looks like a real Chrome browser.
      * Optionally inject cookies for authenticated pages.
      */
-    private async launchBrowser(cookies?: { name: string; value: string; domain: string; path?: string; secure?: boolean; sameSite?: 'Strict' | 'Lax' | 'None' }[]) {
+    private async launchBrowser(cookies?: { name: string; value: string; domain: string; path?: string; secure?: boolean; sameSite?: 'Strict' | 'Lax' | 'None' }[], authToken?: string) {
         const browser = await chromium.launch({
             headless: true,
             args: [
@@ -34,6 +34,19 @@ export class LocatorService {
             colorScheme: 'light',
             ignoreHTTPSErrors: true,
         });
+
+        // Inject Authorization header for token-based auth (Bearer, Basic, etc.)
+        if (authToken && authToken.trim()) {
+            const tokenValue = authToken.trim();
+            // Auto-prepend 'Bearer ' if the user just pasted a raw token
+            const headerValue = tokenValue.match(/^(Bearer|Basic|Token)\s/i)
+                ? tokenValue
+                : `Bearer ${tokenValue}`;
+            await context.setExtraHTTPHeaders({
+                'Authorization': headerValue,
+            });
+            console.log(`[Locator] Injected Authorization header (${headerValue.substring(0, 15)}...)`);
+        }
 
         // Inject cookies for authenticated pages
         if (cookies && cookies.length > 0) {
@@ -55,6 +68,42 @@ export class LocatorService {
         await page.addInitScript(() => {
             Object.defineProperty(navigator, 'webdriver', { get: () => false });
         });
+
+        // For SPAs: inject auth token into localStorage/sessionStorage so client-side
+        // auth checks pass (many Next.js/React apps check storage, not HTTP headers)
+        if (authToken && authToken.trim()) {
+            const rawToken = authToken.trim().replace(/^(Bearer|Basic|Token)\s+/i, '');
+            const fullToken = authToken.trim();
+            await page.addInitScript((tokens: { raw: string; full: string }) => {
+                // Common localStorage key names used by SPAs for auth tokens
+                const commonKeys = [
+                    'token', 'access_token', 'accessToken', 'auth_token', 'authToken',
+                    'jwt', 'jwt_token', 'jwtToken', 'id_token', 'idToken',
+                    'sb-access-token', 'supabase.auth.token',
+                ];
+                for (const key of commonKeys) {
+                    try {
+                        localStorage.setItem(key, tokens.raw);
+                        sessionStorage.setItem(key, tokens.raw);
+                    } catch { }
+                }
+                // Also try storing as a JSON auth object (common pattern with Zustand/Redux)
+                const authObj = JSON.stringify({
+                    access_token: tokens.raw,
+                    token: tokens.raw,
+                    token_type: 'bearer',
+                    isAuthenticated: true,
+                });
+                try {
+                    localStorage.setItem('auth', authObj);
+                    localStorage.setItem('auth-storage', authObj);
+                    sessionStorage.setItem('auth', authObj);
+                    sessionStorage.setItem('auth-storage', authObj);
+                } catch { }
+                console.log('[Locator-Injected] Auth token injected into localStorage/sessionStorage');
+            }, { raw: rawToken, full: fullToken });
+            console.log('[Locator] Configured localStorage/sessionStorage token injection');
+        }
 
         return { browser, context, page };
     }
@@ -86,6 +135,179 @@ export class LocatorService {
         // Strategy 3: domcontentloaded (always works, but content may not be rendered)
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         console.log('[Locator] Loaded with domcontentloaded');
+    }
+
+    /**
+     * Attempt to auto-login on a login page by finding and filling credential fields.
+     * Returns true if login appeared successful (page navigated away from login).
+     */
+    private async attemptAutoLogin(page: Page, username: string, password: string, originalUrl: string): Promise<boolean> {
+        console.log('[Locator] Attempting auto-login...');
+
+        try {
+            // Common selectors for email/username fields
+            const usernameSelectors = [
+                'input[type="email"]',
+                'input[type="text"][name*="email" i]',
+                'input[type="text"][name*="user" i]',
+                'input[type="text"][name*="login" i]',
+                'input[name="email"]',
+                'input[name="username"]',
+                'input[name="login"]',
+                'input[id*="email" i]',
+                'input[id*="user" i]',
+                'input[id*="login" i]',
+                'input[placeholder*="email" i]',
+                'input[placeholder*="user" i]',
+                'input[autocomplete="email"]',
+                'input[autocomplete="username"]',
+                'input[type="text"]',  // fallback: first text input
+            ];
+
+            // Common selectors for password fields
+            const passwordSelectors = [
+                'input[type="password"]',
+                'input[name="password"]',
+                'input[name="pass"]',
+                'input[id*="password" i]',
+                'input[id*="pass" i]',
+                'input[placeholder*="password" i]',
+            ];
+
+            // Common selectors for submit/login buttons
+            const submitSelectors = [
+                'button[type="submit"]',
+                'input[type="submit"]',
+                'button:has-text("Sign in")',
+                'button:has-text("Sign In")',
+                'button:has-text("Log in")',
+                'button:has-text("Log In")',
+                'button:has-text("Login")',
+                'button:has-text("Continue")',
+                'button:has-text("Submit")',
+                'button:has-text("Enter")',
+                'button:has-text("Next")',
+                '[role="button"]:has-text("Sign in")',
+                '[role="button"]:has-text("Log in")',
+                'a:has-text("Sign in")',
+                'a:has-text("Log in")',
+            ];
+
+            // Wait for the login form to render
+            await page.waitForTimeout(2000);
+
+            // Find and fill username/email field
+            let usernameFilled = false;
+            for (const sel of usernameSelectors) {
+                const field = page.locator(sel).first();
+                if (await field.isVisible({ timeout: 500 }).catch(() => false)) {
+                    await field.click({ timeout: 2000 });
+                    await field.fill(username);
+                    console.log(`[Locator] Filled username with selector: ${sel}`);
+                    usernameFilled = true;
+                    break;
+                }
+            }
+
+            if (!usernameFilled) {
+                console.log('[Locator] Could not find username/email field');
+                return false;
+            }
+
+            // Some login flows show password on a second step (after entering email)
+            // Try clicking "Next" or "Continue" if password field is not visible yet
+            let passwordVisible = false;
+            for (const sel of passwordSelectors) {
+                const field = page.locator(sel).first();
+                if (await field.isVisible({ timeout: 500 }).catch(() => false)) {
+                    passwordVisible = true;
+                    break;
+                }
+            }
+
+            if (!passwordVisible) {
+                // Try clicking a "Next" or "Continue" button
+                for (const sel of ['button:has-text("Next")', 'button:has-text("Continue")', 'button[type="submit"]']) {
+                    const btn = page.locator(sel).first();
+                    if (await btn.isVisible({ timeout: 500 }).catch(() => false)) {
+                        await btn.click({ timeout: 2000 });
+                        console.log(`[Locator] Clicked continue/next button: ${sel}`);
+                        await page.waitForTimeout(2000);
+                        break;
+                    }
+                }
+            }
+
+            // Find and fill password field
+            let passwordFilled = false;
+            for (const sel of passwordSelectors) {
+                const field = page.locator(sel).first();
+                if (await field.isVisible({ timeout: 1000 }).catch(() => false)) {
+                    await field.click({ timeout: 2000 });
+                    await field.fill(password);
+                    console.log(`[Locator] Filled password with selector: ${sel}`);
+                    passwordFilled = true;
+                    break;
+                }
+            }
+
+            if (!passwordFilled) {
+                console.log('[Locator] Could not find password field');
+                return false;
+            }
+
+            // Click the submit/login button
+            const loginPageUrl = page.url();
+            let submitted = false;
+
+            for (const sel of submitSelectors) {
+                const btn = page.locator(sel).first();
+                if (await btn.isVisible({ timeout: 500 }).catch(() => false)) {
+                    await btn.click({ timeout: 2000 });
+                    console.log(`[Locator] Clicked submit button: ${sel}`);
+                    submitted = true;
+                    break;
+                }
+            }
+
+            // Fallback: press Enter on the password field
+            if (!submitted) {
+                console.log('[Locator] No submit button found, pressing Enter...');
+                await page.keyboard.press('Enter');
+            }
+
+            // Wait for navigation after login
+            try {
+                await page.waitForURL((url) => !url.toString().includes('signin') && !url.toString().includes('login'), {
+                    timeout: 10000,
+                });
+            } catch {
+                // If waitForURL fails, just wait a bit and check
+                await page.waitForTimeout(3000);
+            }
+
+            const afterLoginUrl = page.url();
+            const loginSucceeded = afterLoginUrl !== loginPageUrl &&
+                !afterLoginUrl.includes('signin') &&
+                !afterLoginUrl.includes('login') &&
+                !afterLoginUrl.includes('error');
+
+            if (loginSucceeded) {
+                console.log(`[Locator] Login succeeded! Now on: ${afterLoginUrl}`);
+
+                // Navigate to the original target URL
+                console.log(`[Locator] Navigating to target URL: ${originalUrl}`);
+                await this.navigateWithFallback(page, originalUrl);
+                await page.waitForTimeout(3000);
+                return true;
+            } else {
+                console.log(`[Locator] Login may have failed. Still on: ${afterLoginUrl}`);
+                return false;
+            }
+        } catch (error) {
+            console.log(`[Locator] Auto-login error: ${(error as Error).message}`);
+            return false;
+        }
     }
 
     /**
@@ -379,7 +601,7 @@ export class LocatorService {
         return allResults;
     }
 
-    async generateLocators(url: string, keyword: string, locatorType: string, userId: number, cookies?: string) {
+    async generateLocators(url: string, keyword: string, locatorType: string, userId: number, cookies?: string, authToken?: string, siteUsername?: string, sitePassword?: string) {
         let browser;
         try {
             // Parse cookies if provided (format: "name=value; name2=value2")
@@ -405,7 +627,7 @@ export class LocatorService {
                 console.log(`[Locator] Cookie names: ${parsedCookies.map(c => c.name).join(', ')}`);
             }
 
-            const launched = await this.launchBrowser(parsedCookies.length > 0 ? parsedCookies : undefined);
+            const launched = await this.launchBrowser(parsedCookies.length > 0 ? parsedCookies : undefined, authToken);
             browser = launched.browser;
             const page = launched.page;
 
@@ -415,10 +637,113 @@ export class LocatorService {
             await page.waitForTimeout(3000);
 
             // Check if we got redirected (e.g., to a login page)
-            const finalUrl = page.url();
-            const wasRedirected = finalUrl !== url && !finalUrl.startsWith(url);
+            let finalUrl = page.url();
+            let wasRedirected = finalUrl !== url && !finalUrl.startsWith(url);
             if (wasRedirected) {
                 console.log(`[Locator] Redirected from ${url} to ${finalUrl}`);
+            }
+
+            // Auto-login: if redirected to login and we have username/password, try to log in
+            if (wasRedirected && siteUsername && sitePassword &&
+                (finalUrl.includes('login') || finalUrl.includes('signin') || finalUrl.includes('auth'))) {
+                const loginSuccess = await this.attemptAutoLogin(page, siteUsername, sitePassword, url);
+                if (loginSuccess) {
+                    // Re-check after login
+                    finalUrl = page.url();
+                    wasRedirected = finalUrl !== url && !finalUrl.startsWith(url);
+                }
+            }
+
+            // SPA auth retry: if still redirected and we have an auth token,
+            // inject it into localStorage and try navigating again
+            if (wasRedirected && authToken && authToken.trim() &&
+                (finalUrl.includes('login') || finalUrl.includes('signin') || finalUrl.includes('auth'))) {
+                console.log('[Locator] SPA auth retry: injecting token into localStorage and retrying...');
+
+                const rawToken = authToken.trim().replace(/^(Bearer|Basic|Token)\s+/i, '');
+
+                // First, discover what storage keys the site actually uses
+                const storageInfo = await page.evaluate(() => {
+                    const keys: string[] = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (key) keys.push(key);
+                    }
+                    return { keys, count: localStorage.length };
+                });
+                console.log(`[Locator] Existing localStorage keys: ${JSON.stringify(storageInfo.keys)}`);
+
+                // Inject the token into all auth-related storage keys + common patterns
+                await page.evaluate((token: string) => {
+                    // Brute-force common SPA auth storage keys
+                    const commonKeys = [
+                        'token', 'access_token', 'accessToken', 'auth_token', 'authToken',
+                        'jwt', 'jwt_token', 'jwtToken', 'id_token', 'idToken',
+                        'sb-access-token', 'supabase.auth.token', 'user_token',
+                    ];
+                    for (const key of commonKeys) {
+                        localStorage.setItem(key, token);
+                        sessionStorage.setItem(key, token);
+                    }
+
+                    // Also inject into any existing keys that look auth-related
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (key && /token|auth|jwt|session|access|credential/i.test(key)) {
+                            const currentVal = localStorage.getItem(key) || '';
+                            // If it looks like JSON, try to inject the token into it
+                            if (currentVal.startsWith('{') || currentVal.startsWith('"')) {
+                                try {
+                                    const parsed = JSON.parse(currentVal);
+                                    if (typeof parsed === 'object' && parsed !== null) {
+                                        // Inject token into all string fields that look token-related
+                                        for (const prop of Object.keys(parsed)) {
+                                            if (/token|access|jwt|credential/i.test(prop) && typeof parsed[prop] === 'string') {
+                                                parsed[prop] = token;
+                                            }
+                                        }
+                                        // Set authenticated flags
+                                        if ('isAuthenticated' in parsed) parsed.isAuthenticated = true;
+                                        if ('authenticated' in parsed) parsed.authenticated = true;
+                                        localStorage.setItem(key, JSON.stringify(parsed));
+                                    }
+                                } catch { }
+                            } else {
+                                localStorage.setItem(key, token);
+                            }
+                        }
+                    }
+
+                    // Zustand persist pattern: store with state wrapper
+                    const zustandAuth = JSON.stringify({
+                        state: {
+                            token: token,
+                            access_token: token,
+                            accessToken: token,
+                            isAuthenticated: true,
+                            authenticated: true,
+                        },
+                        version: 0,
+                    });
+                    localStorage.setItem('auth-storage', zustandAuth);
+                    localStorage.setItem('AuthStore', zustandAuth);
+
+                    console.log('[Locator-Injected] Token injected into localStorage for SPA auth retry');
+                }, rawToken);
+
+                // Navigate back to the original URL
+                console.log(`[Locator] Retrying navigation to: ${url}`);
+                await this.navigateWithFallback(page, url);
+                await page.waitForTimeout(3000);
+
+                // Re-check redirect status
+                finalUrl = page.url();
+                wasRedirected = finalUrl !== url && !finalUrl.startsWith(url);
+                if (wasRedirected) {
+                    console.log(`[Locator] Still redirected after auth retry: ${finalUrl}`);
+                } else {
+                    console.log(`[Locator] SPA auth retry succeeded! Now on: ${finalUrl}`);
+                }
             }
 
             // Try to scroll down to trigger lazy-loaded content
@@ -455,7 +780,7 @@ export class LocatorService {
                     return {
                         warning: 'This page requires authentication. The browser was redirected to a login page.',
                         redirectedTo: finalUrl,
-                        hint: 'Paste your browser cookies in the "Cookies" field to scan authenticated pages. To get cookies: open the target site in Chrome → F12 → Console → type document.cookie → copy the result.',
+                        hint: 'Use the 🔒 Authentication section to provide your site login credentials (username & password). The tool will automatically log in and scan the page.',
                         results: [],
                     };
                 }

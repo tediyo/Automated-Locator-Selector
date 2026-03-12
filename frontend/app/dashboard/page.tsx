@@ -23,7 +23,10 @@ export default function DashboardPage() {
     const [keyword, setKeyword] = useState('');
     const [locatorType, setLocatorType] = useState('xpath');
     const [cookies, setCookies] = useState('');
-    const [showCookies, setShowCookies] = useState(false);
+    const [authToken, setAuthToken] = useState('');
+    const [siteUsername, setSiteUsername] = useState('');
+    const [sitePassword, setSitePassword] = useState('');
+    const [showAuth, setShowAuth] = useState(false);
     const [results, setResults] = useState<LocatorResult[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [error, setError] = useState('');
@@ -50,14 +53,20 @@ export default function DashboardPage() {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({ url, keyword, locatorType, cookies: cookies || undefined }),
+                body: JSON.stringify({
+                    url, keyword, locatorType,
+                    cookies: cookies || undefined,
+                    authToken: authToken || undefined,
+                    siteUsername: siteUsername || undefined,
+                    sitePassword: sitePassword || undefined,
+                }),
             });
             const data = await res.json();
             if (res.ok) {
                 // Check if the response is an auth warning
                 if (data.warning) {
                     setAuthWarning(data);
-                    setShowCookies(true); // Auto-show cookies field
+                    setShowAuth(true); // Auto-show auth fields
                 } else if (Array.isArray(data)) {
                     setResults(data);
                 } else {
@@ -136,27 +145,67 @@ export default function DashboardPage() {
                         </select>
                     </div>
 
-                    {/* Cookies toggle and input */}
+                    {/* Auth toggle and inputs */}
                     <div className="md:col-span-4">
                         <button
                             type="button"
-                            onClick={() => setShowCookies(!showCookies)}
+                            onClick={() => setShowAuth(!showAuth)}
                             className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1"
                         >
-                            <span>{showCookies ? '▼' : '▶'}</span>
-                            🔒 Cookies (for login-protected pages)
+                            <span>{showAuth ? '▼' : '▶'}</span>
+                            🔒 Authentication (for login-protected pages)
                         </button>
-                        {showCookies && (
-                            <div className="mt-2 space-y-1">
-                                <textarea
-                                    placeholder="Paste cookies from browser: Open target site → F12 → Console → type document.cookie → copy the result"
-                                    className="block w-full bg-slate-800/50 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-indigo-500 transition-all outline-none text-sm font-mono h-20 resize-y"
-                                    value={cookies}
-                                    onChange={(e) => setCookies(e.target.value)}
-                                />
+                        {showAuth && (
+                            <div className="mt-3 space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-semibold text-slate-500 uppercase">Site Username / Email</label>
+                                        <input
+                                            type="text"
+                                            placeholder="your@email.com"
+                                            className="block w-full bg-slate-800/50 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-indigo-500 transition-all outline-none text-sm"
+                                            value={siteUsername}
+                                            onChange={(e) => setSiteUsername(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-semibold text-slate-500 uppercase">Site Password</label>
+                                        <input
+                                            type="password"
+                                            placeholder="••••••••"
+                                            className="block w-full bg-slate-800/50 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-indigo-500 transition-all outline-none text-sm"
+                                            value={sitePassword}
+                                            onChange={(e) => setSitePassword(e.target.value)}
+                                        />
+                                    </div>
+                                </div>
                                 <p className="text-xs text-slate-600">
-                                    Format: name=value; name2=value2 (copied from document.cookie)
+                                    The tool will auto-fill and submit the login form if the site requires authentication.
                                 </p>
+
+                                <div className="border-t border-slate-700/50 pt-4 mt-2">
+                                    <p className="text-xs text-slate-500 mb-3">Advanced: use cookies or auth tokens instead</p>
+                                    <div className="space-y-4">
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-semibold text-slate-500 uppercase">Cookies</label>
+                                            <textarea
+                                                placeholder="Paste cookies from browser: F12 → Console → document.cookie"
+                                                className="block w-full bg-slate-800/50 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-indigo-500 transition-all outline-none text-sm font-mono h-16 resize-y"
+                                                value={cookies}
+                                                onChange={(e) => setCookies(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-xs font-semibold text-slate-500 uppercase">Authorization Token</label>
+                                            <textarea
+                                                placeholder="Bearer eyJhbGciOiJIUzI1NiIs..."
+                                                className="block w-full bg-slate-800/50 border border-slate-700 rounded-lg p-3 text-slate-200 focus:ring-2 focus:ring-indigo-500 transition-all outline-none text-sm font-mono h-16 resize-y"
+                                                value={authToken}
+                                                onChange={(e) => setAuthToken(e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>

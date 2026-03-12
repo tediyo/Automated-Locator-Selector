@@ -9,7 +9,7 @@ export class LocatorController {
     @UseGuards(JwtAuthGuard)
     @Post('generate')
     async generate(@Body() body: any, @Request() req: any) {
-        return this.locatorService.generateLocators(body.url, body.keyword, body.locatorType, req.user.userId, body.cookies);
+        return this.locatorService.generateLocators(body.url, body.keyword, body.locatorType, req.user.userId, body.cookies, body.authToken, body.siteUsername, body.sitePassword);
     }
 
     @UseGuards(JwtAuthGuard)
