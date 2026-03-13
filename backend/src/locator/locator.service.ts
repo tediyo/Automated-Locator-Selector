@@ -18,8 +18,31 @@ export class LocatorService {
      * Optionally inject cookies for authenticated pages.
      */
     private async launchBrowser(cookies?: { name: string; value: string; domain: string; path?: string; secure?: boolean; sameSite?: 'Strict' | 'Lax' | 'None' }[], authToken?: string) {
+        // Resolve Chromium executable path for Render deployment
+        const browserPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
+        let executablePath: string | undefined;
+        if (browserPath) {
+            // Look for the chromium headless shell inside the custom browser path
+            const possiblePaths = [
+                path.join(browserPath, 'chromium_headless_shell-1208', 'chrome-headless-shell-linux64', 'chrome-headless-shell'),
+                path.join(browserPath, 'chromium-1208', 'chrome-linux64', 'chrome'),
+            ];
+            for (const p of possiblePaths) {
+                if (fs.existsSync(p)) {
+                    executablePath = p;
+                    console.log(`[Locator] Found browser at: ${p}`);
+                    break;
+                }
+            }
+            if (!executablePath) {
+                // List what's actually in the browser directory for debugging
+                console.log(`[Locator] Browser path contents:`, fs.existsSync(browserPath) ? fs.readdirSync(browserPath) : 'PATH DOES NOT EXIST');
+            }
+        }
+
         const browser = await chromium.launch({
             headless: true,
+            ...(executablePath ? { executablePath } : {}),
             args: [
                 '--disable-blink-features=AutomationControlled',
                 '--no-sandbox',
