@@ -41,4 +41,18 @@ export class AuthService {
         }
         throw new UnauthorizedException('Invalid credentials');
     }
+
+    async googleLogin(user: any) {
+        if (!user) {
+            throw new UnauthorizedException('No user from Google');
+        }
+        const payload = { email: user.email, sub: user._id.toString() };
+        return {
+            access_token: this.jwtService.sign(payload),
+            user: {
+                id: user._id.toString(),
+                email: user.email,
+            },
+        };
+    }
 }

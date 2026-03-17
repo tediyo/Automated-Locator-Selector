@@ -22,4 +22,27 @@ export class UsersService {
     async findOneById(id: string): Promise<UserDocument | null> {
         return this.userModel.findById(id).exec();
     }
+
+    async findOneByGoogleId(googleId: string): Promise<UserDocument | null> {
+        return this.userModel.findOne({ googleId }).exec();
+    }
+
+    async findOrCreateGoogleUser(profile: { email: string; googleId: string }): Promise<UserDocument> {
+        // Check if user exists by googleId
+        let user = await this.findOneByGoogleId(profile.googleId);
+        if (user) return user;
+
+        // Check if user exists by email (link Google to existing account)
+        user = await this.findOneByEmail(profile.email);
+        if (user) {
+            user.googleId = profile.googleId;
+            return user.save();
+        }
+
+        // Create new Google user (no password)
+        return this.create({
+            email: profile.email,
+            googleId: profile.googleId,
+        } as any);
+    }
 }

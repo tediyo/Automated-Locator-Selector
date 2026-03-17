@@ -14,6 +14,10 @@ import * as Joi from 'joi';
         JWT_SECRET: Joi.string().required(),
         JWT_EXPIRATION: Joi.string().required(),
         MONGODB_URI: Joi.string().required(),
+        GOOGLE_CLIENT_ID: Joi.string().optional(),
+        GOOGLE_CLIENT_SECRET: Joi.string().optional(),
+        GOOGLE_CALLBACK_URL: Joi.string().optional(),
+        FRONTEND_URL: Joi.string().optional(),
       }),
     }),
     MongooseModule.forRootAsync({
