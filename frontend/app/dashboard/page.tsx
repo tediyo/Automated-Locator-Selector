@@ -124,10 +124,54 @@ export default function DashboardOverview() {
         return { activityData, pieData };
     }, [history]);
 
+    const handleExport = (format: 'json' | 'csv') => {
+        if (!history.length) return;
+        
+        if (format === 'json') {
+            const blob = new Blob([JSON.stringify(history, null, 2)], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `locator-history-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+        } else {
+            const headers = ['Date', 'URL', 'Keyword', 'Locator Type', 'Results Count'];
+            const rows = history.map(h => [
+                new Date(h.createdAt).toISOString(),
+                h.url,
+                h.keyword,
+                h.locatorType,
+                h.results.length.toString()
+            ]);
+            const csvContent = [headers.join(','), ...rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(','))].join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `locator-history-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+        }
+    };
+
     if (isLoading) return <div className="p-8 text-center" style={{ color: 'var(--muted)' }}>Loading dashboard...</div>;
 
     return (
         <DashboardLayout>
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>Analytics Overview</h1>
+                {!isGuest && history.length > 0 && (
+                    <div className="flex gap-2 relative group">
+                        <button className="text-sm font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-2 border shadow-sm btn-primary">
+                            Export Data ▾
+                        </button>
+                        <div className="absolute right-0 top-full mt-2 w-32 rounded-lg shadow-lg border opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10" style={{ background: 'var(--surface)', borderColor: 'var(--card-border)' }}>
+                            <button onClick={() => handleExport('csv')} className="w-full text-left px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors first:rounded-t-lg" style={{ color: 'var(--foreground)' }}>Export CSV</button>
+                            <button onClick={() => handleExport('json')} className="w-full text-left px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors last:rounded-b-lg" style={{ color: 'var(--foreground)' }}>Export JSON</button>
+                        </div>
+                    </div>
+                )}
+            </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
                 {/* KPI Cards */}
@@ -193,7 +237,7 @@ export default function DashboardOverview() {
                         ) : history.length === 0 ? (
                             <div className="flex-1 flex items-center justify-center text-sm" style={{ color: 'var(--muted)' }}>No data available</div>
                         ) : (
-                            <div className="flex-1 w-full h-full min-h-[200px]">
+                            <div className="w-full" style={{ height: '250px' }}>
                                 <ResponsiveContainer width="100%" height="100%">
                                     <PieChart>
                                         <Pie
@@ -204,7 +248,9 @@ export default function DashboardOverview() {
                                             outerRadius={80}
                                             paddingAngle={5}
                                             dataKey="value"
+                                            nameKey="name"
                                             stroke="none"
+                                            isAnimationActive={true}
                                         >
                                             {chartData.pieData.map((entry, index) => (
                                                 <Cell key={`cell-${index}`} fill={entry.color} />
