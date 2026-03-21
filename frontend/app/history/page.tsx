@@ -152,7 +152,7 @@ export default function HistoryPage() {
                                         <button
                                             onClick={() => { 
                                                 const rerunParams = new URLSearchParams({ url: entry.url, keyword: entry.keyword, type: entry.locatorType });
-                                                router.push(`/dashboard?${rerunParams.toString()}`);
+                                                router.push(`/dashboard/locator?${rerunParams.toString()}`);
                                             }}
                                             className="text-sm px-4 py-2 rounded-lg transition-all font-medium flex items-center gap-2 shadow-sm"
                                             style={{ color: 'var(--foreground)', background: 'var(--surface)', border: '1px solid var(--card-border)' }}
