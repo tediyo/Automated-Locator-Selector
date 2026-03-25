@@ -19,6 +19,9 @@ export class User {
 
     @Prop({ required: false })
     googleId: string;
+
+    @Prop({ required: false })
+    photoUrl: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

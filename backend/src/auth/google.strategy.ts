@@ -25,13 +25,15 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         profile: any,
         done: VerifyCallback,
     ): Promise<any> {
-        const { id, emails, displayName } = profile;
+        const { id, emails, displayName, photos } = profile;
         const email = emails[0].value;
+        const photoUrl = photos?.[0]?.value || '';
 
         const user = await this.usersService.findOrCreateGoogleUser({
             email,
             googleId: id,
             fullName: displayName || email.split('@')[0],
+            photoUrl,
         });
 
         done(null, user);

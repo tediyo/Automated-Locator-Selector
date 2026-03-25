@@ -23,7 +23,7 @@ export class UsersService {
         return this.userModel.findById(id).exec();
     }
 
-    async updateProfile(id: string, data: { fullName?: string; phoneNumber?: string }): Promise<UserDocument | null> {
+    async updateProfile(id: string, data: { fullName?: string; phoneNumber?: string; photoUrl?: string }): Promise<UserDocument | null> {
         return this.userModel.findByIdAndUpdate(id, { $set: data }, { new: true }).exec();
     }
 
@@ -31,15 +31,23 @@ export class UsersService {
         return this.userModel.findOne({ googleId }).exec();
     }
 
-    async findOrCreateGoogleUser(profile: { email: string; googleId: string; fullName: string }): Promise<UserDocument> {
+    async findOrCreateGoogleUser(profile: { email: string; googleId: string; fullName: string; photoUrl?: string }): Promise<UserDocument> {
         // Check if user exists by googleId
         let user = await this.findOneByGoogleId(profile.googleId);
-        if (user) return user;
+        if (user) {
+            // Update photo URL on every login in case it changed
+            if (profile.photoUrl && user.photoUrl !== profile.photoUrl) {
+                user.photoUrl = profile.photoUrl;
+                await user.save();
+            }
+            return user;
+        }
 
         // Check if user exists by email (link Google to existing account)
         user = await this.findOneByEmail(profile.email);
         if (user) {
             user.googleId = profile.googleId;
+            if (profile.photoUrl) user.photoUrl = profile.photoUrl;
             return user.save();
         }
 
@@ -48,6 +56,7 @@ export class UsersService {
             fullName: profile.fullName,
             email: profile.email,
             googleId: profile.googleId,
+            photoUrl: profile.photoUrl,
         });
     }
 }

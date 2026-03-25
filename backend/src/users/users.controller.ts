@@ -16,6 +16,7 @@ export class UsersController {
             fullName: user.fullName,
             email: user.email,
             phoneNumber: user.phoneNumber || '',
+            photoUrl: user.photoUrl || '',
             isGoogleUser: !!user.googleId,
         };
     }

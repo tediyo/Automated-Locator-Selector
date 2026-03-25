@@ -11,6 +11,7 @@ interface ProfileData {
     fullName: string;
     email: string;
     phoneNumber: string;
+    photoUrl: string;
     isGoogleUser: boolean;
 }
 
@@ -42,7 +43,6 @@ export default function ProfilePage() {
                 setFullName(data.fullName || '');
                 setPhoneNumber(data.phoneNumber || '');
             })
-            .catch(() => {});
     }, [token]);
 
     const handleSave = async () => {
@@ -120,8 +120,21 @@ export default function ProfilePage() {
             {/* Avatar card */}
             <div className="card p-6 flex flex-col sm:flex-row items-center gap-6">
                 {/* Avatar */}
-                <div className="w-20 h-20 rounded-full flex items-center justify-center shrink-0 text-2xl font-bold shadow-md" style={{ background: 'var(--accent)', color: '#000' }}>
-                    {initials}
+                <div className="w-20 h-20 rounded-full shrink-0 overflow-hidden shadow-md" style={{ background: 'var(--accent)' }}>
+                    {profile?.photoUrl ? (
+                        <img
+                            src={profile.photoUrl}
+                            alt={profile?.fullName || 'Profile photo'}
+                            className="w-full h-full object-cover"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget.nextSibling as HTMLElement).style.display = 'flex'; }}
+                        />
+                    ) : null}
+                    <div
+                        className="w-full h-full flex items-center justify-center text-2xl font-bold"
+                        style={{ display: profile?.photoUrl ? 'none' : 'flex', color: '#000' }}
+                    >
+                        {initials}
+                    </div>
                 </div>
                 <div className="flex-1 text-center sm:text-left min-w-0">
                     <p className="text-xl font-bold truncate" style={{ color: 'var(--foreground)' }}>{profile?.fullName || '—'}</p>
