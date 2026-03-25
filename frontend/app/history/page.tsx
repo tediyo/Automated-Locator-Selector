@@ -9,6 +9,11 @@ import Link from 'next/link';
 interface LocatorResult {
     tag: string;
     locator: string;
+    snippets?: {
+        playwright?: string;
+        cypress?: string;
+        selenium?: string;
+    };
 }
 
 interface HistoryEntry {
@@ -187,19 +192,53 @@ export default function HistoryPage() {
                                         {entry.results.map((res, idx) => {
                                             const copyKey = `${entry._id}-${idx}`;
                                             return (
-                                                <div key={idx} className="flex items-start gap-4 p-3 rounded-lg border border-transparent hover:border-amber-500/20 transition-colors" style={{ background: 'var(--code-bg)' }}>
-                                                    <span className="text-xs px-2 py-1 rounded font-mono shrink-0" style={{ background: 'var(--tag-bg)', color: 'var(--tag-text)' }}>{res.tag}</span>
-                                                    <code className="text-sm font-mono break-all flex-1 leading-relaxed" style={{ color: 'var(--muted-strong)' }}>{res.locator}</code>
-                                                    <button
-                                                        onClick={() => { navigator.clipboard.writeText(res.locator); setHistoryCopiedIdx(copyKey); setTimeout(() => setHistoryCopiedIdx(null), 2000); }}
-                                                        className="text-xs px-3 py-1.5 rounded-md transition-all font-medium border border-[var(--card-border)]"
-                                                        style={{
-                                                            background: historyCopiedIdx === copyKey ? 'var(--copy-btn-hover-bg)' : 'var(--copy-btn-bg)',
-                                                            color: historyCopiedIdx === copyKey ? 'var(--copy-btn-hover-text)' : 'var(--copy-btn-text)'
-                                                        }}
-                                                    >
-                                                        {historyCopiedIdx === copyKey ? '✓ Copied' : 'Copy'}
-                                                    </button>
+                                                <div key={idx} className="flex flex-col gap-2 p-4 rounded-lg border border-transparent hover:border-amber-500/20 transition-colors" style={{ background: 'var(--code-bg)' }}>
+                                                    {/* Top row: tag + raw locator */}
+                                                    <div className="flex items-start gap-4">
+                                                        <span className="text-xs px-2 py-1 rounded font-mono shrink-0" style={{ background: 'var(--tag-bg)', color: 'var(--tag-text)' }}>{res.tag}</span>
+                                                        <code className="text-sm font-mono break-all flex-1 leading-relaxed" style={{ color: 'var(--muted-strong)' }}>{res.locator}</code>
+                                                        <button
+                                                            onClick={() => { navigator.clipboard.writeText(res.locator); setHistoryCopiedIdx(copyKey); setTimeout(() => setHistoryCopiedIdx(null), 2000); }}
+                                                            className="text-xs px-3 py-1.5 rounded-md transition-all font-medium border border-[var(--card-border)]"
+                                                            style={{
+                                                                background: historyCopiedIdx === copyKey ? 'var(--copy-btn-hover-bg)' : 'var(--copy-btn-bg)',
+                                                                color: historyCopiedIdx === copyKey ? 'var(--copy-btn-hover-text)' : 'var(--copy-btn-text)'
+                                                            }}
+                                                        >
+                                                            {historyCopiedIdx === copyKey ? '✓ Copied' : 'Copy'}
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Snippets from DB */}
+                                                    {res.snippets && (
+                                                        <div className="mt-2 pt-2 border-t border-[var(--card-border)] flex gap-2 overflow-x-auto pb-1">
+                                                            {['playwright', 'cypress', 'selenium'].map((fw) => {
+                                                                const code = res.snippets![fw as keyof typeof res.snippets];
+                                                                if (!code) return null;
+                                                                const snipCopyKey = `${copyKey}-${fw}`;
+                                                                return (
+                                                                    <div key={fw} className="flex-1 min-w-[250px] bg-[var(--surface)] border border-[var(--card-border)] rounded-md p-2">
+                                                                        <div className="flex items-center justify-between mb-2">
+                                                                            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">{fw}</span>
+                                                                            <button
+                                                                                onClick={() => { navigator.clipboard.writeText(code); setHistoryCopiedIdx(snipCopyKey); setTimeout(() => setHistoryCopiedIdx(null), 2000); }}
+                                                                                className="text-[10px] px-2 py-0.5 rounded transition-all font-medium"
+                                                                                style={{
+                                                                                    background: historyCopiedIdx === snipCopyKey ? 'var(--copy-btn-hover-bg)' : 'var(--copy-btn-bg)',
+                                                                                    color: historyCopiedIdx === snipCopyKey ? '#000' : 'var(--copy-btn-text)'
+                                                                                }}
+                                                                            >
+                                                                                {historyCopiedIdx === snipCopyKey ? '✓' : 'Copy'}
+                                                                            </button>
+                                                                        </div>
+                                                                        <pre className="text-[10px] font-mono whitespace-pre break-all leading-relaxed text-[var(--muted-strong)] overflow-x-auto">
+                                                                            {code}
+                                                                        </pre>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })}

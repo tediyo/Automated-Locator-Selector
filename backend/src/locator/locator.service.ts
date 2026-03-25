@@ -13,6 +13,48 @@ export class LocatorService {
         private searchHistoryModel: Model<SearchHistoryDocument>,
     ) { }
 
+    private generateSnippet(locatorType: string, locator: string, framework: 'playwright' | 'cypress' | 'selenium', tag: string): string {
+        const escaped = locator.replace(/`/g, '\\`').replace(/\\/g, '\\\\');
+
+        if (framework === 'playwright') {
+            if (locatorType === 'xpath' || locatorType === 'full_xpath') {
+                return `// Playwright – XPath\nconst el = page.locator('xpath=${escaped}');\nawait el.click(); // or .fill(), .textContent(), etc.`;
+            }
+            if (locatorType === 'selector') {
+                return `// Playwright – CSS Selector\nconst el = page.locator('${escaped}');\nawait el.click();`;
+            }
+            if (locatorType === 'js_path') {
+                return `// Playwright – JS Path (evaluate)\nconst el = await page.evaluateHandle(() => ${escaped});`;
+            }
+            return `// Playwright – ${tag}\nconst el = page.locator('${escaped}');\nawait el.waitFor();`;
+        }
+
+        if (framework === 'cypress') {
+            if (locatorType === 'xpath' || locatorType === 'full_xpath') {
+                return `// Cypress – XPath (requires cypress-xpath plugin)\ncy.xpath('${escaped}').click();`;
+            }
+            if (locatorType === 'selector') {
+                return `// Cypress – CSS Selector\ncy.get('${escaped}').click();`;
+            }
+            if (locatorType === 'js_path') {
+                return `// Cypress – JS Path\ncy.window().then(win => { const el = ${escaped}; cy.wrap(el).click(); });`;
+            }
+            return `// Cypress – ${tag}\ncy.get('${escaped}').should('be.visible');`;
+        }
+
+        // Selenium (Python)
+        if (locatorType === 'xpath' || locatorType === 'full_xpath') {
+            return `# Selenium – XPath\nfrom selenium.webdriver.common.by import By\nel = driver.find_element(By.XPATH, '${escaped}')\nel.click()`;
+        }
+        if (locatorType === 'selector') {
+            return `# Selenium – CSS Selector\nfrom selenium.webdriver.common.by import By\nel = driver.find_element(By.CSS_SELECTOR, '${escaped}')\nel.click()`;
+        }
+        if (locatorType === 'js_path') {
+            return `# Selenium – JS Path\nel = driver.execute_script('return ${escaped}')`;
+        }
+        return `# Selenium – ${tag}\nfrom selenium.webdriver.common.by import By\nel = driver.find_element(By.XPATH, '${escaped}')`;
+    }
+
     /**
      * Launch a stealth browser context that looks like a real Chrome browser.
      * Optionally inject cookies for authenticated pages.
@@ -910,7 +952,14 @@ export class LocatorService {
                     default:
                         locator = el.xpath;
                 }
-                return { tag: el.tag, locator };
+                
+                const snippets = {
+                    playwright: this.generateSnippet(locatorType.toLowerCase(), locator, 'playwright', el.tag),
+                    cypress: this.generateSnippet(locatorType.toLowerCase(), locator, 'cypress', el.tag),
+                    selenium: this.generateSnippet(locatorType.toLowerCase(), locator, 'selenium', el.tag),
+                };
+
+                return { tag: el.tag, locator, snippets };
             }).filter(l => l.locator && l.locator.trim() !== '');
 
             // Save to history (only for authenticated users)
