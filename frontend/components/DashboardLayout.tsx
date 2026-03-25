@@ -69,11 +69,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         )}
                     </button>
                     {!isGuest && token && (
-                        <Link href="/history" className="text-sm border border-[var(--card-border)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-hover)] px-3 py-1.5 rounded-lg flex items-center gap-2 transition-all font-medium hover:-translate-y-0.5 shadow-sm whitespace-nowrap">
-                            <span className="text-lg leading-none">🕒</span> History
+                        <Link href="/history" className="text-xs border border-[var(--card-border)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-hover)] px-3 py-1.5 rounded-md flex items-center gap-1.5 transition-all font-medium whitespace-nowrap">
+                            History
                         </Link>
                     )}
-                    <button onClick={logout} className="text-sm hover:text-red-400 transition-colors whitespace-nowrap" style={{ color: 'var(--muted)' }}>
+                    <button onClick={logout} className="text-xs hover:text-red-400 transition-colors whitespace-nowrap font-medium" style={{ color: 'var(--muted)' }}>
                         Sign Out
                     </button>
                 </div>

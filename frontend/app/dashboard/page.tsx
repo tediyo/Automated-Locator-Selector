@@ -172,9 +172,9 @@ export default function DashboardOverview() {
                     >
                         <button 
                             onClick={() => setIsExportOpen(!isExportOpen)}
-                            className="text-sm font-semibold px-4 py-2 rounded-lg transition-all flex items-center gap-2 border shadow-sm btn-primary"
+                            className="text-xs font-semibold px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 border btn-primary"
                         >
-                            Export Data ▾
+                            Export ▾
                         </button>
                         {isExportOpen && (
                             <div className="absolute right-0 top-full mt-2 w-32 rounded-lg shadow-lg border transition-all z-10" style={{ background: 'var(--surface)', borderColor: 'var(--card-border)' }}>
@@ -281,8 +281,8 @@ export default function DashboardOverview() {
                         )}
                     </div>
 
-                    <Link href="/dashboard/locator" className="block w-full btn-primary py-4 rounded-xl text-center font-bold text-lg shadow-lg hover:shadow-amber-500/20 transition-all hover:-translate-y-1">
-                        + New Locator Search
+                    <Link href="/dashboard/locator" className="inline-flex items-center justify-center gap-2 w-full btn-primary py-2 px-4 rounded-md text-sm font-semibold transition-all hover:shadow-amber-500/20">
+                        + New Search
                     </Link>
 
                 </div>

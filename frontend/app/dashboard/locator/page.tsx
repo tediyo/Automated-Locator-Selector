@@ -131,7 +131,7 @@ function LocatorPage() {
                             type="url"
                             required
                             placeholder="https://example.com"
-                            className="block w-full border rounded-lg p-3 focus:ring-2 focus:ring-amber-500 transition-all outline-none"
+                            className="block w-full border rounded-md p-2 text-sm focus:ring-1 focus:ring-amber-500 transition-all outline-none"
                             style={inputStyle}
                             value={url}
                             onChange={(e) => setUrl(e.target.value)}
@@ -143,7 +143,7 @@ function LocatorPage() {
                             type="text"
                             required
                             placeholder="e.g. Email"
-                            className="block w-full border rounded-lg p-3 focus:ring-2 focus:ring-amber-500 transition-all outline-none"
+                            className="block w-full border rounded-md p-2 text-sm focus:ring-1 focus:ring-amber-500 transition-all outline-none"
                             style={inputStyle}
                             value={keyword}
                             onChange={(e) => setKeyword(e.target.value)}
@@ -152,7 +152,7 @@ function LocatorPage() {
                     <div className="space-y-2">
                         <label className="text-xs font-semibold uppercase" style={{ color: 'var(--muted)' }}>Copy As</label>
                         <select
-                            className="block w-full border rounded-lg p-3 focus:ring-2 focus:ring-amber-500 transition-all outline-none appearance-none"
+                            className="block w-full border rounded-md p-2 text-sm focus:ring-1 focus:ring-amber-500 transition-all outline-none appearance-none"
                             style={inputStyle}
                             value={locatorType}
                             onChange={(e) => setLocatorType(e.target.value)}
@@ -172,10 +172,10 @@ function LocatorPage() {
                         <button
                             type="button"
                             onClick={() => setShowAuth(!showAuth)}
-                            className="text-xs text-amber-500 hover:text-amber-400 dark:text-amber-400 dark:hover:text-amber-300 transition-colors flex items-center gap-1"
+                            className="text-xs text-amber-500 hover:text-amber-400 dark:text-amber-400 dark:hover:text-amber-300 transition-colors flex items-center gap-1 font-medium"
                         >
                             <span>{showAuth ? '▼' : '▶'}</span>
-                            🔒 Authentication (for login-protected pages)
+                            Authentication (for protected pages)
                         </button>
                         {showAuth && (
                             <div className="mt-4 space-y-4">
@@ -185,7 +185,7 @@ function LocatorPage() {
                                         <input
                                             type="text"
                                             placeholder="your@email.com"
-                                            className="block w-full border rounded-lg p-3 focus:ring-2 focus:ring-amber-500 transition-all outline-none text-sm"
+                                            className="block w-full border rounded-md p-2 focus:ring-1 focus:ring-amber-500 transition-all outline-none text-sm"
                                             style={inputStyle}
                                             value={siteUsername}
                                             onChange={(e) => setSiteUsername(e.target.value)}
@@ -196,7 +196,7 @@ function LocatorPage() {
                                         <input
                                             type="password"
                                             placeholder="••••••••"
-                                            className="block w-full border rounded-lg p-3 focus:ring-2 focus:ring-amber-500 transition-all outline-none text-sm"
+                                            className="block w-full border rounded-md p-2 focus:ring-1 focus:ring-amber-500 transition-all outline-none text-sm"
                                             style={inputStyle}
                                             value={sitePassword}
                                             onChange={(e) => setSitePassword(e.target.value)}
@@ -214,7 +214,7 @@ function LocatorPage() {
                                             <label className="text-xs font-semibold uppercase" style={{ color: 'var(--muted)' }}>Cookies</label>
                                             <textarea
                                                 placeholder="Paste cookies from browser: F12 → Console → document.cookie"
-                                                className="block w-full border rounded-lg p-3 focus:ring-2 focus:ring-amber-500 transition-all outline-none text-sm font-mono h-16 resize-y"
+                                                className="block w-full border rounded-md p-2 focus:ring-1 focus:ring-amber-500 transition-all outline-none text-sm font-mono h-16 resize-y"
                                                 style={inputStyle}
                                                 value={cookies}
                                                 onChange={(e) => setCookies(e.target.value)}
@@ -224,7 +224,7 @@ function LocatorPage() {
                                             <label className="text-xs font-semibold uppercase" style={{ color: 'var(--muted)' }}>Authorization Token</label>
                                             <textarea
                                                 placeholder="Bearer eyJhbGciOiJIUzI1NiIs..."
-                                                className="block w-full border rounded-lg p-3 focus:ring-2 focus:ring-amber-500 transition-all outline-none text-sm font-mono h-16 resize-y"
+                                                className="block w-full border rounded-md p-2 focus:ring-1 focus:ring-amber-500 transition-all outline-none text-sm font-mono h-16 resize-y"
                                                 style={inputStyle}
                                                 value={authToken}
                                                 onChange={(e) => setAuthToken(e.target.value)}
@@ -236,11 +236,11 @@ function LocatorPage() {
                         )}
                     </div>
 
-                    <div className="md:col-span-4 mt-4">
+                    <div className="md:col-span-4 mt-2">
                         <button
                             type="submit"
                             disabled={isGenerating}
-                            className="w-full btn-primary py-3 rounded-lg transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
+                            className="btn-primary py-2 px-6 rounded-md text-sm transition-all disabled:opacity-50 flex items-center gap-2"
                         >
                             {isGenerating ? (
                                 <>
@@ -304,7 +304,7 @@ function LocatorPage() {
                                     </span>
                                     <button
                                         onClick={() => copyToClipboard(res.locator, idx)}
-                                        className="px-4 py-2 rounded-lg text-sm transition-all"
+                                        className="px-3 py-1 rounded-md text-xs font-medium transition-all"
                                         style={{
                                             background: copiedIdx === idx ? 'var(--copy-btn-hover-bg)' : 'var(--copy-btn-bg)',
                                             color: copiedIdx === idx ? 'var(--copy-btn-hover-text)' : 'var(--copy-btn-text)',
