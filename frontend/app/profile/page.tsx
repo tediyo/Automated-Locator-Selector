@@ -104,7 +104,7 @@ export default function ProfilePage() {
             <header className="flex flex-wrap items-center justify-between gap-3 mt-2 mb-4">
                 <div className="flex items-center gap-3">
                     <Link href="/dashboard" className="text-sm px-3 py-1.5 rounded-md transition-all font-medium hover:bg-[var(--surface-hover)] shadow-sm shrink-0" style={{ color: 'var(--foreground)', background: 'var(--surface)', border: '1px solid var(--card-border)' }}>
-                         Back
+                        Back
                     </Link>
                     <h1 className="text-lg font-bold tracking-tight text-[var(--foreground)]">My Profile</h1>
                 </div>
