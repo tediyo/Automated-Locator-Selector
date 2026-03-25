@@ -73,9 +73,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             History
                         </Link>
                     )}
-                    <button onClick={logout} className="text-xs hover:text-red-400 transition-colors whitespace-nowrap font-medium" style={{ color: 'var(--muted)' }}>
-                        Sign Out
-                    </button>
+                    {!isGuest && token ? (
+                        <Link
+                            href="/profile"
+                            title="My Profile"
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all hover:ring-2 hover:ring-amber-500 hover:ring-offset-1 shadow-sm shrink-0"
+                            style={{ background: 'var(--accent)', color: '#000' }}
+                        >
+                            {(user?.email?.[0] ?? 'U').toUpperCase()}
+                        </Link>
+                    ) : (
+                        <button onClick={logout} className="text-xs hover:text-red-400 transition-colors whitespace-nowrap font-medium" style={{ color: 'var(--muted)' }}>
+                            Sign Out
+                        </button>
+                    )}
                 </div>
             </header>
 
