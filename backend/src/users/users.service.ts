@@ -23,6 +23,10 @@ export class UsersService {
         return this.userModel.findById(id).exec();
     }
 
+    async updateProfile(id: string, data: { fullName?: string; phoneNumber?: string }): Promise<UserDocument | null> {
+        return this.userModel.findByIdAndUpdate(id, { $set: data }, { new: true }).exec();
+    }
+
     async findOneByGoogleId(googleId: string): Promise<UserDocument | null> {
         return this.userModel.findOne({ googleId }).exec();
     }
