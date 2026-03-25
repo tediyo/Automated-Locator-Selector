@@ -83,7 +83,7 @@ export default function HistoryPage() {
                     </Link>
                 </div>
                 <div className="flex items-center justify-center gap-2 w-1/3">
-                    <span className="text-2xl opacity-80" style={{ color: 'var(--foreground)' }}>🕒</span>
+                    
                     <h1 className="text-xl font-bold tracking-tight text-[var(--foreground)]">Search History</h1>
                 </div>
                 <div className="flex items-center justify-end gap-3 w-1/3">
@@ -135,23 +135,28 @@ export default function HistoryPage() {
                                     {/* Main info section */}
                                     <button
                                         onClick={() => setExpandedHistory(expandedHistory === entry._id ? null : entry._id)}
-                                        className="flex-1 text-left bg-transparent border-none cursor-pointer p-0 focus:outline-none flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4"
+                                        className="flex-1 text-left bg-transparent border-none cursor-pointer p-0 focus:outline-none flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 overflow-hidden w-full"
                                     >
-                                        <div className="flex items-center gap-2 min-w-[200px]">
-                                            <span className="text-sm font-semibold truncate" style={{ color: 'var(--foreground)' }}>{entry.keyword}</span>
-                                            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded" style={{ background: 'var(--tag-bg)', color: 'var(--tag-text)' }}>
+                                        {/* Keyword & Type */}
+                                        <div className="flex items-center gap-2 shrink-0 max-w-full">
+                                            <span className="text-sm font-semibold truncate" title={entry.keyword} style={{ color: 'var(--foreground)' }}>
+                                                {entry.keyword}
+                                            </span>
+                                            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded shrink-0" style={{ background: 'var(--tag-bg)', color: 'var(--tag-text)' }}>
                                                 {entry.locatorType}
                                             </span>
                                         </div>
                                         
-                                        <div className="flex items-center gap-2 flex-1">
-                                            <span className="text-xs opacity-60" style={{ color: 'var(--muted)' }}>on</span>
-                                            <span className="text-xs font-mono truncate max-w-[200px] sm:max-w-xs md:max-w-sm" style={{ color: 'var(--muted-strong)' }}>
+                                        {/* URL */}
+                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                            <span className="text-xs opacity-60 shrink-0" style={{ color: 'var(--muted)' }}>on</span>
+                                            <span className="text-xs font-mono truncate" title={entry.url} style={{ color: 'var(--muted-strong)' }}>
                                                 {entry.url.replace(/^https?:\/\//, '')}
                                             </span>
                                         </div>
 
-                                        <div className="flex items-center gap-2 shrink-0 text-[11px] mt-2 sm:mt-0" style={{ color: 'var(--muted)' }}>
+                                        {/* Stats & Date */}
+                                        <div className="flex items-center gap-2 shrink-0 text-[11px] mt-1 sm:mt-0" style={{ color: 'var(--muted)' }}>
                                             <span>
                                                 {entry.results.length} result{entry.results.length !== 1 ? 's' : ''}
                                             </span>
@@ -164,15 +169,6 @@ export default function HistoryPage() {
                                             </span>
                                         </div>
                                      </button>
-                                        <div className="flex items-center gap-4 mt-3">
-                                            {/* <span className="text-sm flex items-center gap-1 font-medium" style={{ color: 'var(--foreground)' }}>
-                                                <span>{expandedHistory === entry._id ? '▼' : '▶'}</span>
-                                                {entry.results.length} results
-                                            </span>
-                                            <span className="text-xs" style={{ color: 'var(--muted)' }}>
-                                                {new Date(entry.createdAt).toLocaleDateString()} at {new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </span> */}
-                                        </div>
                                     {/* Action Buttons */}
                                     <div className="flex items-center gap-1.5 shrink-0 self-end md:self-center">
                                         <button
@@ -269,7 +265,7 @@ export default function HistoryPage() {
                 ) : (
                     <div className="text-center py-12 px-4 card shadow-sm mt-4 border-dashed border-[var(--card-border)] bg-[var(--surface)] max-w-2xl mx-auto rounded-xl">
                         <div className="mx-auto w-12 h-12 rounded-full border border-dashed border-[var(--muted)] flex items-center justify-center mb-4 text-[var(--muted)] opacity-50">
-                            <span className="text-xl">🕒</span>
+                            
                         </div>
                         <h3 className="text-base font-semibold" style={{ color: 'var(--foreground)' }}>No history yet</h3>
                         <p className="text-xs mt-1.5 font-medium max-w-sm mx-auto" style={{ color: 'var(--muted)' }}>Generate some locators on the dashboard and they will be safely stored here for future reference.</p>
