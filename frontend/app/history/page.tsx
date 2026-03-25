@@ -9,6 +9,11 @@ import Link from 'next/link';
 interface LocatorResult {
     tag: string;
     locator: string;
+    snippets?: {
+        playwright?: string;
+        cypress?: string;
+        selenium?: string;
+    };
 }
 
 interface HistoryEntry {
@@ -70,35 +75,36 @@ export default function HistoryPage() {
     }
 
     return (
-        <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-8">
-            <header className="flex justify-between items-center bg-transparent mt-4 mb-4">
-                <div className="flex items-center gap-4">
-                    <Link href="/dashboard" className="text-sm px-3 py-1.5 rounded-md transition-all font-medium hover:-translate-y-0.5 shadow-sm" style={{ color: 'var(--foreground)', background: 'var(--surface)', border: '1px solid var(--card-border)' }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-hover)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface)'; }}
-                    >
+        <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-6">
+            <header className="flex justify-between items-center bg-transparent mt-2 mb-6">
+                <div className="flex items-center gap-3 w-1/3">
+                    <Link href="/dashboard" className="text-sm px-3 py-1.5 rounded-md transition-all font-medium hover:-translate-x-1 hover:bg-[var(--surface-hover)] shadow-sm" style={{ color: 'var(--foreground)', background: 'var(--surface)', border: '1px solid var(--card-border)' }}>
                         ← Back
                     </Link>
-                    <h1 className="text-2xl font-bold text-[var(--foreground)]">Search History</h1>
                 </div>
-                <div className="flex items-center gap-3">
-                    <span className="text-sm px-3 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-full font-medium shadow-sm">
+                <div className="flex items-center justify-center gap-2 w-1/3">
+                    <span className="text-2xl opacity-80" style={{ color: 'var(--foreground)' }}>🕒</span>
+                    <h1 className="text-xl font-bold tracking-tight text-[var(--foreground)]">Search History</h1>
+                </div>
+                <div className="flex items-center justify-end gap-3 w-1/3">
+                    <span className="text-xs px-2.5 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-full font-medium shadow-sm">
                         {history.length} {history.length === 1 ? 'Search' : 'Searches'}
                     </span>
-                    <button onClick={toggleTheme} className="theme-toggle" title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
+                    <div className="w-px h-4 bg-[var(--card-border)] mx-1"></div>
+                    <button onClick={toggleTheme} className="theme-toggle scale-90 opacity-80 hover:opacity-100 transition-opacity" title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
                         {theme === 'dark' ? (
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
                         ) : (
                             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
                         )}
                     </button>
-                    <button onClick={logout} className="text-sm hover:text-red-400 transition-colors" style={{ color: 'var(--muted)' }}>Sign Out</button>
+                    <button onClick={logout} className="text-xs hover:text-red-400 transition-colors hidden sm:block" style={{ color: 'var(--muted)' }}>Sign Out</button>
                 </div>
             </header>
 
             <section className="space-y-4">
-                <div className="flex items-center justify-between mb-6">
-                    <p className="text-sm" style={{ color: 'var(--muted)' }}>View and re-run your past locators generation.</p>
+                <div className="flex flex-wrap items-center justify-between mb-4 gap-4">
+                    <p className="text-xs font-medium" style={{ color: 'var(--muted)' }}>Review past locator extractions and access saved snippets.</p>
                     {history.length > 0 && (
                         <button
                             onClick={async () => {
@@ -121,46 +127,66 @@ export default function HistoryPage() {
                 </div>
 
                 {history.length > 0 ? (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                         {history.map((entry) => (
-                            <div key={entry._id} className="card p-5">
-                                <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                            <div key={entry._id} className="card p-4 transition-all hover:border-[var(--accent)] hover:shadow-md border border-[var(--card-border)] bg-[var(--surface)] relative overflow-hidden group">
+                                <div className="absolute top-0 left-0 w-1 h-full bg-transparent group-hover:bg-amber-500 transition-colors"></div>
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                    {/* Main info section */}
                                     <button
                                         onClick={() => setExpandedHistory(expandedHistory === entry._id ? null : entry._id)}
-                                        className="flex-1 text-left bg-transparent border-none cursor-pointer p-0 focus:outline-none"
-                                        style={{ color: 'var(--foreground)' }}
+                                        className="flex-1 text-left bg-transparent border-none cursor-pointer p-0 focus:outline-none flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4"
                                     >
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <span className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>&quot;{entry.keyword}&quot;</span>
-                                            <code className="text-xs px-2 py-0.5 rounded ml-2" style={{ background: 'var(--tag-bg)', color: 'var(--tag-text)' }}>{entry.locatorType}</code>
+                                        <div className="flex items-center gap-2 min-w-[200px]">
+                                            <span className="text-sm font-semibold truncate" style={{ color: 'var(--foreground)' }}>{entry.keyword}</span>
+                                            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded" style={{ background: 'var(--tag-bg)', color: 'var(--tag-text)' }}>
+                                                {entry.locatorType}
+                                            </span>
                                         </div>
-                                        <div className="flex items-center gap-2 text-sm">
-                                            <span style={{ color: 'var(--muted)' }}>on</span>
-                                            <span className="font-mono truncate max-w-sm md:max-w-md" style={{ color: 'var(--muted-strong)' }}>{entry.url}</span>
+                                        
+                                        <div className="flex items-center gap-2 flex-1">
+                                            <span className="text-xs opacity-60" style={{ color: 'var(--muted)' }}>on</span>
+                                            <span className="text-xs font-mono truncate max-w-[200px] sm:max-w-xs md:max-w-sm" style={{ color: 'var(--muted-strong)' }}>
+                                                {entry.url.replace(/^https?:\/\//, '')}
+                                            </span>
                                         </div>
+
+                                        <div className="flex items-center gap-2 shrink-0 text-[11px] mt-2 sm:mt-0" style={{ color: 'var(--muted)' }}>
+                                            <span>
+                                                {entry.results.length} result{entry.results.length !== 1 ? 's' : ''}
+                                            </span>
+                                            <span className="opacity-50">•</span>
+                                            <span>
+                                                {new Date(entry.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                            </span>
+                                            <span className={`transition-transform ml-1 border rounded-full w-4 h-4 flex items-center justify-center border-transparent ${expandedHistory === entry._id ? 'rotate-180 bg-[var(--surface-hover)]' : ''}`}>
+                                                ▼
+                                            </span>
+                                        </div>
+                                     </button>
                                         <div className="flex items-center gap-4 mt-3">
-                                            <span className="text-sm flex items-center gap-1 font-medium" style={{ color: 'var(--foreground)' }}>
+                                            {/* <span className="text-sm flex items-center gap-1 font-medium" style={{ color: 'var(--foreground)' }}>
                                                 <span>{expandedHistory === entry._id ? '▼' : '▶'}</span>
                                                 {entry.results.length} results
                                             </span>
                                             <span className="text-xs" style={{ color: 'var(--muted)' }}>
                                                 {new Date(entry.createdAt).toLocaleDateString()} at {new Date(entry.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </span>
+                                            </span> */}
                                         </div>
-                                     </button>
-                                    <div className="flex flex-wrap items-center gap-2 shrink-0 md:self-start self-end mt-2 md:mt-0">
+                                    {/* Action Buttons */}
+                                    <div className="flex items-center gap-1.5 shrink-0 self-end md:self-center">
                                         <button
                                             onClick={() => { 
                                                 const rerunParams = new URLSearchParams({ url: entry.url, keyword: entry.keyword, type: entry.locatorType });
                                                 router.push(`/dashboard/locator?${rerunParams.toString()}`);
                                             }}
-                                            className="text-sm px-4 py-2 rounded-lg transition-all font-medium flex items-center gap-2 shadow-sm"
-                                            style={{ color: 'var(--foreground)', background: 'var(--surface)', border: '1px solid var(--card-border)' }}
+                                            className="text-[11px] px-2.5 py-1.5 rounded transition-all font-medium flex items-center gap-1 shadow-sm border"
+                                            style={{ color: 'var(--foreground)', background: 'var(--surface)', borderColor: 'var(--card-border)' }}
                                             onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--surface-hover)'; }}
                                             onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--card-border)'; e.currentTarget.style.background = 'var(--surface)'; }}
                                             title="Re-run this search in Dashboard"
                                         >
-                                            <span className="text-lg leading-none">↻</span> Re-run
+                                            <span className="text-sm leading-none">↻</span>
                                         </button>
                                         <button
                                             onClick={async () => {
@@ -171,13 +197,11 @@ export default function HistoryPage() {
                                                 });
                                                 setHistory(h => h.filter(e => e._id !== entry._id));
                                             }}
-                                            className="text-sm px-4 py-2 rounded-lg transition-all font-medium shadow-sm hover:bg-red-500/10"
-                                            style={{ color: 'var(--muted)', background: 'var(--surface)', border: '1px solid var(--card-border)' }}
-                                            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.color = '#ef4444'; }}
-                                            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--card-border)'; e.currentTarget.style.color = 'var(--muted)'; }}
+                                            className="text-[11px] px-2.5 py-1.5 rounded transition-all font-medium flex items-center gap-1 shadow-sm border hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/30"
+                                            style={{ color: 'var(--muted)', background: 'var(--surface)', borderColor: 'var(--card-border)' }}
                                             title="Delete this entry"
                                         >
-                                            Delete
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
                                         </button>
                                     </div>
                                 </div>
@@ -187,19 +211,53 @@ export default function HistoryPage() {
                                         {entry.results.map((res, idx) => {
                                             const copyKey = `${entry._id}-${idx}`;
                                             return (
-                                                <div key={idx} className="flex items-start gap-4 p-3 rounded-lg border border-transparent hover:border-amber-500/20 transition-colors" style={{ background: 'var(--code-bg)' }}>
-                                                    <span className="text-xs px-2 py-1 rounded font-mono shrink-0" style={{ background: 'var(--tag-bg)', color: 'var(--tag-text)' }}>{res.tag}</span>
-                                                    <code className="text-sm font-mono break-all flex-1 leading-relaxed" style={{ color: 'var(--muted-strong)' }}>{res.locator}</code>
-                                                    <button
-                                                        onClick={() => { navigator.clipboard.writeText(res.locator); setHistoryCopiedIdx(copyKey); setTimeout(() => setHistoryCopiedIdx(null), 2000); }}
-                                                        className="text-xs px-3 py-1.5 rounded-md transition-all font-medium border border-[var(--card-border)]"
-                                                        style={{
-                                                            background: historyCopiedIdx === copyKey ? 'var(--copy-btn-hover-bg)' : 'var(--copy-btn-bg)',
-                                                            color: historyCopiedIdx === copyKey ? 'var(--copy-btn-hover-text)' : 'var(--copy-btn-text)'
-                                                        }}
-                                                    >
-                                                        {historyCopiedIdx === copyKey ? '✓ Copied' : 'Copy'}
-                                                    </button>
+                                                <div key={idx} className="flex flex-col gap-2 p-4 rounded-lg border border-transparent hover:border-amber-500/20 transition-colors" style={{ background: 'var(--code-bg)' }}>
+                                                    {/* Top row: tag + raw locator */}
+                                                    <div className="flex items-start gap-4">
+                                                        <span className="text-xs px-2 py-1 rounded font-mono shrink-0" style={{ background: 'var(--tag-bg)', color: 'var(--tag-text)' }}>{res.tag}</span>
+                                                        <code className="text-sm font-mono break-all flex-1 leading-relaxed" style={{ color: 'var(--muted-strong)' }}>{res.locator}</code>
+                                                        <button
+                                                            onClick={() => { navigator.clipboard.writeText(res.locator); setHistoryCopiedIdx(copyKey); setTimeout(() => setHistoryCopiedIdx(null), 2000); }}
+                                                            className="text-xs px-3 py-1.5 rounded-md transition-all font-medium border border-[var(--card-border)]"
+                                                            style={{
+                                                                background: historyCopiedIdx === copyKey ? 'var(--copy-btn-hover-bg)' : 'var(--copy-btn-bg)',
+                                                                color: historyCopiedIdx === copyKey ? 'var(--copy-btn-hover-text)' : 'var(--copy-btn-text)'
+                                                            }}
+                                                        >
+                                                            {historyCopiedIdx === copyKey ? '✓ Copied' : 'Copy'}
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Snippets from DB */}
+                                                    {res.snippets && (
+                                                        <div className="mt-2 pt-2 border-t border-[var(--card-border)] flex flex-col gap-2 overflow-x-auto pb-1">
+                                                            {['playwright', 'cypress', 'selenium'].map((fw) => {
+                                                                const code = res.snippets![fw as keyof typeof res.snippets];
+                                                                if (!code) return null;
+                                                                const snipCopyKey = `${copyKey}-${fw}`;
+                                                                return (
+                                                                    <div key={fw} className="flex-1 min-w-[250px] bg-[var(--surface)] border border-[var(--card-border)] rounded-md p-2">
+                                                                        <div className="flex items-center justify-between mb-2">
+                                                                            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">{fw}</span>
+                                                                            <button
+                                                                                onClick={() => { navigator.clipboard.writeText(code); setHistoryCopiedIdx(snipCopyKey); setTimeout(() => setHistoryCopiedIdx(null), 2000); }}
+                                                                                className="text-[10px] px-2 py-0.5 rounded transition-all font-medium"
+                                                                                style={{
+                                                                                    background: historyCopiedIdx === snipCopyKey ? 'var(--copy-btn-hover-bg)' : 'var(--copy-btn-bg)',
+                                                                                    color: historyCopiedIdx === snipCopyKey ? '#000' : 'var(--copy-btn-text)'
+                                                                                }}
+                                                                            >
+                                                                                {historyCopiedIdx === snipCopyKey ? '✓' : 'Copy'}
+                                                                            </button>
+                                                                        </div>
+                                                                        <pre className="text-[10px] font-mono whitespace-pre break-all leading-relaxed text-[var(--muted-strong)] overflow-x-auto">
+                                                                            {code}
+                                                                        </pre>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })}
@@ -209,11 +267,13 @@ export default function HistoryPage() {
                         ))}
                     </div>
                 ) : (
-                    <div className="text-center py-16 card shadow-sm mt-8 border-dashed border-[var(--card-border)]">
-                        <span className="text-4xl mb-4 block opacity-50">🕒</span>
-                        <h3 className="text-lg font-semibold" style={{ color: 'var(--foreground)' }}>No history yet</h3>
-                        <p className="text-sm mt-2 font-medium" style={{ color: 'var(--muted)' }}>Generate some locators on the dashboard to see your history here.</p>
-                        <Link href="/dashboard" className="inline-block mt-6 btn-primary px-6 py-2.5 rounded-lg shadow-sm">Go to Dashboard</Link>
+                    <div className="text-center py-12 px-4 card shadow-sm mt-4 border-dashed border-[var(--card-border)] bg-[var(--surface)] max-w-2xl mx-auto rounded-xl">
+                        <div className="mx-auto w-12 h-12 rounded-full border border-dashed border-[var(--muted)] flex items-center justify-center mb-4 text-[var(--muted)] opacity-50">
+                            <span className="text-xl">🕒</span>
+                        </div>
+                        <h3 className="text-base font-semibold" style={{ color: 'var(--foreground)' }}>No history yet</h3>
+                        <p className="text-xs mt-1.5 font-medium max-w-sm mx-auto" style={{ color: 'var(--muted)' }}>Generate some locators on the dashboard and they will be safely stored here for future reference.</p>
+                        <Link href="/dashboard" className="inline-block mt-5 btn-primary text-xs px-5 py-2 rounded-md shadow-sm opacity-90 hover:opacity-100 transition-opacity">Go to Dashboard</Link>
                     </div>
                 )}
             </section>

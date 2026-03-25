@@ -2,11 +2,15 @@
 
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import SiteVisitTracker from "@/app/SiteVisitTracker";
 
 export function Providers({ children }: { children: React.ReactNode }) {
     return (
         <ThemeProvider>
-            <AuthProvider>{children}</AuthProvider>
+            <AuthProvider>
+                <SiteVisitTracker />
+                {children}
+            </AuthProvider>
         </ThemeProvider>
     );
 }
