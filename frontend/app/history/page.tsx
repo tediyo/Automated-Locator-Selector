@@ -80,7 +80,7 @@ export default function HistoryPage() {
                 {/* Left: Back + Title */}
                 <div className="flex items-center gap-3 min-w-0">
                     <Link href="/dashboard" className="text-sm px-3 py-1.5 rounded-md transition-all font-medium hover:-translate-x-1 hover:bg-[var(--surface-hover)] shadow-sm shrink-0" style={{ color: 'var(--foreground)', background: 'var(--surface)', border: '1px solid var(--card-border)' }}>
-                        ← Back
+                        Back
                     </Link>
                     <h1 className="text-lg font-bold tracking-tight truncate text-[var(--foreground)]">Search History</h1>
                 </div>
