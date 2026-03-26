@@ -45,7 +45,7 @@ export default function SignupPage() {
     return (
         <div className="flex items-center justify-center min-h-screen p-4">
             <div className="card w-full max-w-md p-8 space-y-6">
-                <div className="flex flex-col items-center gap-4"
+                <div className="flex flex-col items-center gap-4">
                     <img src="/Logo/white.png" alt="TWT Logo" className="h-16 w-auto block dark:hidden" />
                     <img src="/Logo/black.png" alt="TWT Logo" className="h-16 w-auto hidden dark:block" />
                     <div className="text-center">
