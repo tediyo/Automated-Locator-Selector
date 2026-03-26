@@ -45,10 +45,16 @@ export default function SignupPage() {
     return (
         <div className="flex items-center justify-center min-h-screen p-4">
             <div className="card w-full max-w-md p-8 space-y-6">
-                <h1 className="text-3xl font-bold text-center text-amber-500 dark:text-amber-400">
-                    Create Account
-                </h1>
-                <p className="text-center" style={{ color: 'var(--muted)' }}>Join the QA Locator Tool</p>
+                <div className="flex flex-col items-center gap-4">
+                    <img src="/Logo/white.png" alt="TWT Logo" className="h-16 w-auto block dark:hidden" />
+                    <img src="/Logo/black.png" alt="TWT Logo" className="h-16 w-auto hidden dark:block" />
+                    <div className="text-center">
+                        <h1 className="text-2xl font-bold text-amber-500 dark:text-amber-400">
+                            Create Account
+                        </h1>
+                        <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>Join us today</p>
+                    </div>
+                </div>
 
                 {error && <p className="bg-red-500/10 border border-red-500/50 text-red-500 dark:text-red-400 p-3 rounded-lg text-sm">{error}</p>}
                 {success && <p className="bg-green-500/10 border border-green-500/50 text-green-500 dark:text-green-400 p-3 rounded-lg text-sm">Account created! Redirecting to login...</p>}
