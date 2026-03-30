@@ -9,6 +9,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "QA Locator Tool",
   description: "Generate DOM locators with ease",
+  other: {
+    "google-adsense-account": "ca-pub-2531101160881513",
+  },
 };
 
 export default function RootLayout({
