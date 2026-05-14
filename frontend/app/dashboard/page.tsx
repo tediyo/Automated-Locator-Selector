@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useDeferredValue } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -58,6 +58,28 @@ function eachLocalDayInclusive(fromYmd: string, toYmd: string): string[] {
     return days;
 }
 
+/** Inclusive day count between two local calendar days (1 = same day). */
+function inclusiveLocalDayCount(fromYmd: string, toYmd: string): number {
+    const [lo, hi] = fromYmd <= toYmd ? [fromYmd, toYmd] : [toYmd, fromYmd];
+    const s = startOfLocalDay(lo);
+    const e = endOfLocalDay(hi);
+    return Math.floor((e.getTime() - s.getTime()) / 86400000) + 1;
+}
+
+/** YYYY-MM keys for every calendar month touched by [fromYmd, toYmd] (inclusive). */
+function eachMonthKeyInclusive(fromYmd: string, toYmd: string): string[] {
+    const [lo, hi] = fromYmd <= toYmd ? [fromYmd, toYmd] : [toYmd, fromYmd];
+    const start = startOfLocalDay(lo);
+    const end = endOfLocalDay(hi);
+    const keys: string[] = [];
+    const cur = new Date(start.getFullYear(), start.getMonth(), 1);
+    while (cur.getTime() <= end.getTime()) {
+        keys.push(`${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, '0')}`);
+        cur.setMonth(cur.getMonth() + 1);
+    }
+    return keys;
+}
+
 export default function DashboardOverview() {
     const { user, token, isGuest, isLoading } = useAuth();
     const router = useRouter();
@@ -73,6 +95,10 @@ export default function DashboardOverview() {
         return toYMD(t);
     });
     const [rangeEnd, setRangeEnd] = useState(() => toYMD(new Date()));
+
+    const deferredSingleDay = useDeferredValue(singleDay);
+    const deferredRangeStart = useDeferredValue(rangeStart);
+    const deferredRangeEnd = useDeferredValue(rangeEnd);
 
     useEffect(() => {
         if (!isLoading && !user && !isGuest) {
@@ -110,34 +136,36 @@ export default function DashboardOverview() {
         if (datePreset === 'all') return history;
 
         if (datePreset === 'single') {
-            const start = startOfLocalDay(singleDay);
-            const end = endOfLocalDay(singleDay);
+            const start = startOfLocalDay(deferredSingleDay);
+            const end = endOfLocalDay(deferredSingleDay);
             return history.filter((e) => {
                 const t = new Date(e.createdAt).getTime();
                 return t >= start.getTime() && t <= end.getTime();
             });
         }
 
-        const rs = startOfLocalDay(rangeStart);
-        const re = endOfLocalDay(rangeEnd);
+        const rs = startOfLocalDay(deferredRangeStart);
+        const re = endOfLocalDay(deferredRangeEnd);
         const lo = Math.min(rs.getTime(), re.getTime());
         const hi = Math.max(rs.getTime(), re.getTime());
         return history.filter((e) => {
             const t = new Date(e.createdAt).getTime();
             return t >= lo && t <= hi;
         });
-    }, [history, datePreset, singleDay, rangeStart, rangeEnd]);
+    }, [history, datePreset, deferredSingleDay, deferredRangeStart, deferredRangeEnd]);
 
     const activityChartTitle = useMemo(() => {
         if (datePreset === 'all') return 'Search Activity (Last 7 Days)';
         if (datePreset === 'single') {
-            const d = startOfLocalDay(singleDay);
+            const d = startOfLocalDay(deferredSingleDay);
             return `Search Activity (${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })})`;
         }
-        const a = startOfLocalDay(rangeStart <= rangeEnd ? rangeStart : rangeEnd);
-        const b = endOfLocalDay(rangeStart <= rangeEnd ? rangeEnd : rangeStart);
-        return `Search Activity (${a.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${b.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })})`;
-    }, [datePreset, singleDay, rangeStart, rangeEnd]);
+        const a = startOfLocalDay(deferredRangeStart <= deferredRangeEnd ? deferredRangeStart : deferredRangeEnd);
+        const b = endOfLocalDay(deferredRangeStart <= deferredRangeEnd ? deferredRangeEnd : deferredRangeStart);
+        const span = inclusiveLocalDayCount(deferredRangeStart, deferredRangeEnd);
+        const byMonth = span > 366;
+        return `Search Activity (${a.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${b.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}${byMonth ? ', by month' : ''})`;
+    }, [datePreset, deferredSingleDay, deferredRangeStart, deferredRangeEnd]);
 
     // Derived Statistics (respects date filter)
     const stats = useMemo(() => {
@@ -188,32 +216,55 @@ export default function DashboardOverview() {
             });
             activityData = Object.keys(dateMap).map((date) => ({ date, searches: dateMap[date] }));
         } else if (datePreset === 'single') {
-            const label = startOfLocalDay(singleDay).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const label = startOfLocalDay(deferredSingleDay).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             activityData = [{ date: label, searches: filteredHistory.length }];
         } else {
-            const from = rangeStart <= rangeEnd ? rangeStart : rangeEnd;
-            const to = rangeStart <= rangeEnd ? rangeEnd : rangeStart;
-            const dayKeys = eachLocalDayInclusive(from, to);
-            const startY = parseInt(from.slice(0, 4), 10);
-            const endY = parseInt(to.slice(0, 4), 10);
-            const multiYear = startY !== endY;
-            const dateMap: Record<string, number> = {};
-            dayKeys.forEach((ymd) => {
-                dateMap[ymd] = 0;
-            });
-            filteredHistory.forEach((entry) => {
-                const ymd = toYMD(new Date(entry.createdAt));
-                if (dateMap[ymd] !== undefined) {
-                    dateMap[ymd]++;
-                }
-            });
-            activityData = dayKeys.map((ymd) => {
-                const d = startOfLocalDay(ymd);
-                const date = multiYear
-                    ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
-                    : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                return { date, searches: dateMap[ymd] };
-            });
+            const from = deferredRangeStart <= deferredRangeEnd ? deferredRangeStart : deferredRangeEnd;
+            const to = deferredRangeStart <= deferredRangeEnd ? deferredRangeEnd : deferredRangeStart;
+            const spanDays = inclusiveLocalDayCount(from, to);
+
+            if (spanDays > 366) {
+                const monthKeys = eachMonthKeyInclusive(from, to);
+                const monthMap: Record<string, number> = {};
+                monthKeys.forEach((k) => {
+                    monthMap[k] = 0;
+                });
+                filteredHistory.forEach((entry) => {
+                    const d = new Date(entry.createdAt);
+                    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                    if (monthMap[k] !== undefined) {
+                        monthMap[k]++;
+                    }
+                });
+                activityData = monthKeys.map((k) => {
+                    const [y, m] = k.split('-').map(Number);
+                    const d = new Date(y, m - 1, 1);
+                    const date = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                    return { date, searches: monthMap[k] };
+                });
+            } else {
+                const dayKeys = eachLocalDayInclusive(from, to);
+                const startY = parseInt(from.slice(0, 4), 10);
+                const endY = parseInt(to.slice(0, 4), 10);
+                const multiYear = startY !== endY;
+                const dateMap: Record<string, number> = {};
+                dayKeys.forEach((ymd) => {
+                    dateMap[ymd] = 0;
+                });
+                filteredHistory.forEach((entry) => {
+                    const ymd = toYMD(new Date(entry.createdAt));
+                    if (dateMap[ymd] !== undefined) {
+                        dateMap[ymd]++;
+                    }
+                });
+                activityData = dayKeys.map((ymd) => {
+                    const d = startOfLocalDay(ymd);
+                    const date = multiYear
+                        ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
+                        : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    return { date, searches: dateMap[ymd] };
+                });
+            }
         }
 
         const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316'];
@@ -224,7 +275,7 @@ export default function DashboardOverview() {
         }));
 
         return { activityData, pieData };
-    }, [filteredHistory, datePreset, singleDay, rangeStart, rangeEnd]);
+    }, [filteredHistory, datePreset, deferredSingleDay, deferredRangeStart, deferredRangeEnd]);
 
     const handleExport = (format: 'json' | 'csv') => {
         if (!filteredHistory.length) return;
