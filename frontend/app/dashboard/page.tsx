@@ -24,12 +24,55 @@ interface HistoryEntry {
     createdAt: string;
 }
 
+type DatePreset = 'all' | 'single' | 'range';
+
+function toYMD(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+/** Local calendar day start (00:00:00.000) */
+function startOfLocalDay(ymd: string): Date {
+    const [y, m, d] = ymd.split('-').map(Number);
+    return new Date(y, m - 1, d, 0, 0, 0, 0);
+}
+
+/** Local calendar day end (23:59:59.999) */
+function endOfLocalDay(ymd: string): Date {
+    const [y, m, d] = ymd.split('-').map(Number);
+    return new Date(y, m - 1, d, 23, 59, 59, 999);
+}
+
+function eachLocalDayInclusive(fromYmd: string, toYmd: string): string[] {
+    const start = startOfLocalDay(fromYmd);
+    const end = endOfLocalDay(toYmd);
+    if (start.getTime() > end.getTime()) return eachLocalDayInclusive(toYmd, fromYmd);
+    const days: string[] = [];
+    const cur = new Date(start);
+    while (cur.getTime() <= end.getTime()) {
+        days.push(toYMD(cur));
+        cur.setDate(cur.getDate() + 1);
+    }
+    return days;
+}
+
 export default function DashboardOverview() {
     const { user, token, isGuest, isLoading } = useAuth();
     const router = useRouter();
     const [history, setHistory] = useState<HistoryEntry[]>([]);
     const [fetching, setFetching] = useState(true);
     const [isExportOpen, setIsExportOpen] = useState(false);
+
+    const [datePreset, setDatePreset] = useState<DatePreset>('all');
+    const [singleDay, setSingleDay] = useState(() => toYMD(new Date()));
+    const [rangeStart, setRangeStart] = useState(() => {
+        const t = new Date();
+        t.setDate(t.getDate() - 6);
+        return toYMD(t);
+    });
+    const [rangeEnd, setRangeEnd] = useState(() => toYMD(new Date()));
 
     useEffect(() => {
         if (!isLoading && !user && !isGuest) {
@@ -63,73 +106,131 @@ export default function DashboardOverview() {
         }
     }, [token, isGuest]);
 
-    // Derived Statistics
+    const filteredHistory = useMemo(() => {
+        if (datePreset === 'all') return history;
+
+        if (datePreset === 'single') {
+            const start = startOfLocalDay(singleDay);
+            const end = endOfLocalDay(singleDay);
+            return history.filter((e) => {
+                const t = new Date(e.createdAt).getTime();
+                return t >= start.getTime() && t <= end.getTime();
+            });
+        }
+
+        const rs = startOfLocalDay(rangeStart);
+        const re = endOfLocalDay(rangeEnd);
+        const lo = Math.min(rs.getTime(), re.getTime());
+        const hi = Math.max(rs.getTime(), re.getTime());
+        return history.filter((e) => {
+            const t = new Date(e.createdAt).getTime();
+            return t >= lo && t <= hi;
+        });
+    }, [history, datePreset, singleDay, rangeStart, rangeEnd]);
+
+    const activityChartTitle = useMemo(() => {
+        if (datePreset === 'all') return 'Search Activity (Last 7 Days)';
+        if (datePreset === 'single') {
+            const d = startOfLocalDay(singleDay);
+            return `Search Activity (${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })})`;
+        }
+        const a = startOfLocalDay(rangeStart <= rangeEnd ? rangeStart : rangeEnd);
+        const b = endOfLocalDay(rangeStart <= rangeEnd ? rangeEnd : rangeStart);
+        return `Search Activity (${a.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${b.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })})`;
+    }, [datePreset, singleDay, rangeStart, rangeEnd]);
+
+    // Derived Statistics (respects date filter)
     const stats = useMemo(() => {
-        if (!history.length) return null;
-        
-        const totalSearches = history.length;
-        const totalElements = history.reduce((sum, entry) => sum + entry.results.length, 0);
-        
+        if (!filteredHistory.length) return null;
+
+        const totalSearches = filteredHistory.length;
+        const totalElements = filteredHistory.reduce((sum, entry) => sum + entry.results.length, 0);
+
         const typeCounts: Record<string, number> = {};
-        history.forEach(h => {
+        filteredHistory.forEach((h) => {
             typeCounts[h.locatorType] = (typeCounts[h.locatorType] || 0) + 1;
         });
-        
+
         let topType = 'N/A';
         let maxCount = 0;
         Object.entries(typeCounts).forEach(([type, count]) => {
-            if (count > maxCount) { maxCount = count; topType = type; }
+            if (count > maxCount) {
+                maxCount = count;
+                topType = type;
+            }
         });
 
         return { totalSearches, totalElements, topType };
-    }, [history]);
+    }, [filteredHistory]);
 
     // Chart Data Preparation
     const chartData = useMemo(() => {
-        // Activity Over Time (last 7 days grouping)
-        const dateMap: Record<string, number> = {};
-        const today = new Date();
-        for (let i = 6; i >= 0; i--) {
-            const d = new Date(today);
-            d.setDate(d.getDate() - i);
-            dateMap[d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })] = 0;
-        }
-
         const typeCounts: Record<string, number> = {};
-
-        history.forEach(entry => {
-            // Activity mapping
-            const dateStr = new Date(entry.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            if (dateMap[dateStr] !== undefined) {
-                dateMap[dateStr]++;
-            } else {
-                // If it's older than 7 days, we might just not show it in the 7-day chart, but let's accumulate it if we switch to 30 days later
-            }
-
-            // Pie mapping
+        filteredHistory.forEach((entry) => {
             typeCounts[entry.locatorType] = (typeCounts[entry.locatorType] || 0) + 1;
         });
 
-        const activityData = Object.keys(dateMap).map(date => ({
-            date,
-            searches: dateMap[date]
-        }));
+        let activityData: { date: string; searches: number }[];
+
+        if (datePreset === 'all') {
+            const dateMap: Record<string, number> = {};
+            const today = new Date();
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date(today);
+                d.setDate(d.getDate() - i);
+                dateMap[d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })] = 0;
+            }
+            filteredHistory.forEach((entry) => {
+                const dateStr = new Date(entry.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                if (dateMap[dateStr] !== undefined) {
+                    dateMap[dateStr]++;
+                }
+            });
+            activityData = Object.keys(dateMap).map((date) => ({ date, searches: dateMap[date] }));
+        } else if (datePreset === 'single') {
+            const label = startOfLocalDay(singleDay).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            activityData = [{ date: label, searches: filteredHistory.length }];
+        } else {
+            const from = rangeStart <= rangeEnd ? rangeStart : rangeEnd;
+            const to = rangeStart <= rangeEnd ? rangeEnd : rangeStart;
+            const dayKeys = eachLocalDayInclusive(from, to);
+            const startY = parseInt(from.slice(0, 4), 10);
+            const endY = parseInt(to.slice(0, 4), 10);
+            const multiYear = startY !== endY;
+            const dateMap: Record<string, number> = {};
+            dayKeys.forEach((ymd) => {
+                dateMap[ymd] = 0;
+            });
+            filteredHistory.forEach((entry) => {
+                const ymd = toYMD(new Date(entry.createdAt));
+                if (dateMap[ymd] !== undefined) {
+                    dateMap[ymd]++;
+                }
+            });
+            activityData = dayKeys.map((ymd) => {
+                const d = startOfLocalDay(ymd);
+                const date = multiYear
+                    ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
+                    : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                return { date, searches: dateMap[ymd] };
+            });
+        }
 
         const COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316'];
         const pieData = Object.keys(typeCounts).map((key, index) => ({
             name: key,
             value: typeCounts[key],
-            color: COLORS[index % COLORS.length]
+            color: COLORS[index % COLORS.length],
         }));
 
         return { activityData, pieData };
-    }, [history]);
+    }, [filteredHistory, datePreset, singleDay, rangeStart, rangeEnd]);
 
     const handleExport = (format: 'json' | 'csv') => {
-        if (!history.length) return;
-        
+        if (!filteredHistory.length) return;
+
         if (format === 'json') {
-            const blob = new Blob([JSON.stringify(history, null, 2)], { type: 'application/json' });
+            const blob = new Blob([JSON.stringify(filteredHistory, null, 2)], { type: 'application/json' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -137,7 +238,7 @@ export default function DashboardOverview() {
             a.click();
         } else {
             const headers = ['Date', 'URL', 'Keyword', 'Locator Type', 'Results Count'];
-            const rows = history.map(h => [
+            const rows = filteredHistory.map((h) => [
                 new Date(h.createdAt).toISOString(),
                 h.url,
                 h.keyword,
@@ -160,7 +261,7 @@ export default function DashboardOverview() {
         <DashboardLayout>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-6 w-full">
                 <h1 className="text-2xl font-bold" style={{ color: 'var(--foreground)' }}>Analytics Overview</h1>
-                {!isGuest && history.length > 0 && (
+                {!isGuest && filteredHistory.length > 0 && (
                     <div 
                         className="flex gap-2 relative"
                         tabIndex={-1}
@@ -185,6 +286,74 @@ export default function DashboardOverview() {
                     </div>
                 )}
             </div>
+
+            {!isGuest && token && (
+                <div className="card p-4 md:p-5 mb-6 shadow-sm border" style={{ borderColor: 'var(--card-border)' }}>
+                    <div className="flex flex-col lg:flex-row lg:items-end gap-4 lg:gap-6">
+                        <div className="space-y-1.5">
+                            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--muted)' }}>Report period</p>
+                            <div className="inline-flex rounded-lg p-0.5 border" style={{ background: 'var(--input-bg)', borderColor: 'var(--card-border)' }}>
+                                {(['all', 'single', 'range'] as const).map((preset) => (
+                                    <button
+                                        key={preset}
+                                        type="button"
+                                        onClick={() => setDatePreset(preset)}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                                            datePreset === preset
+                                                ? 'bg-amber-500 text-black shadow-sm'
+                                                : 'hover:opacity-90'
+                                        }`}
+                                        style={datePreset === preset ? {} : { color: 'var(--muted)' }}
+                                    >
+                                        {preset === 'all' ? 'All time' : preset === 'single' ? 'One day' : 'Date range'}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        {datePreset === 'single' && (
+                            <label className="flex flex-col gap-1.5 min-w-[10rem]">
+                                <span className="text-xs font-medium" style={{ color: 'var(--muted)' }}>Day</span>
+                                <input
+                                    type="date"
+                                    value={singleDay}
+                                    onChange={(e) => setSingleDay(e.target.value)}
+                                    className="rounded-md px-3 py-2 text-sm border w-full max-w-xs"
+                                    style={{ background: 'var(--input-bg)', borderColor: 'var(--input-border)', color: 'var(--foreground)' }}
+                                />
+                            </label>
+                        )}
+                        {datePreset === 'range' && (
+                            <div className="flex flex-wrap items-end gap-4">
+                                <label className="flex flex-col gap-1.5 min-w-[10rem]">
+                                    <span className="text-xs font-medium" style={{ color: 'var(--muted)' }}>From</span>
+                                    <input
+                                        type="date"
+                                        value={rangeStart}
+                                        onChange={(e) => setRangeStart(e.target.value)}
+                                        className="rounded-md px-3 py-2 text-sm border w-full"
+                                        style={{ background: 'var(--input-bg)', borderColor: 'var(--input-border)', color: 'var(--foreground)' }}
+                                    />
+                                </label>
+                                <label className="flex flex-col gap-1.5 min-w-[10rem]">
+                                    <span className="text-xs font-medium" style={{ color: 'var(--muted)' }}>To</span>
+                                    <input
+                                        type="date"
+                                        value={rangeEnd}
+                                        onChange={(e) => setRangeEnd(e.target.value)}
+                                        className="rounded-md px-3 py-2 text-sm border w-full"
+                                        style={{ background: 'var(--input-bg)', borderColor: 'var(--input-border)', color: 'var(--foreground)' }}
+                                    />
+                                </label>
+                            </div>
+                        )}
+                    </div>
+                    {!fetching && history.length > 0 && datePreset !== 'all' && filteredHistory.length === 0 && (
+                        <p className="text-xs font-medium mt-3 text-amber-600 dark:text-amber-400">
+                            No searches in this period. Adjust the date or switch to &quot;All time&quot; to see your full history.
+                        </p>
+                    )}
+                </div>
+            )}
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
@@ -208,7 +377,7 @@ export default function DashboardOverview() {
 
                 {/* Main Activity Chart */}
                 <div className="md:col-span-2 card p-6 shadow-sm min-h-[350px] flex flex-col">
-                    <h2 className="text-lg font-bold mb-4" style={{ color: 'var(--foreground)' }}>Search Activity (Last 7 Days)</h2>
+                    <h2 className="text-lg font-bold mb-4" style={{ color: 'var(--foreground)' }}>{activityChartTitle}</h2>
                     {fetching ? (
                         <div className="flex-1 flex items-center justify-center text-sm" style={{ color: 'var(--muted)' }}>Loading chart data...</div>
                     ) : history.length === 0 ? (
@@ -216,6 +385,11 @@ export default function DashboardOverview() {
                             <span className="text-4xl mb-3 block">📊</span>
                             <p className="text-sm font-medium" style={{ color: 'var(--muted)' }}>No activity data yet</p>
                             <Link href="/dashboard/locator" className="text-amber-500 font-medium text-sm mt-2 hover:underline">Start your first search</Link>
+                        </div>
+                    ) : filteredHistory.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center opacity-80">
+                            <p className="text-sm font-medium" style={{ color: 'var(--muted)' }}>No searches in the selected period.</p>
+                            <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>Change the report period above or pick different dates.</p>
                         </div>
                     ) : (
                         <div className="flex-1 w-full h-full min-h-[250px]">
@@ -250,6 +424,8 @@ export default function DashboardOverview() {
                             <div className="flex-1 flex items-center justify-center text-sm" style={{ color: 'var(--muted)' }}>Loading...</div>
                         ) : history.length === 0 ? (
                             <div className="flex-1 flex items-center justify-center text-sm" style={{ color: 'var(--muted)' }}>No data available</div>
+                        ) : filteredHistory.length === 0 || chartData.pieData.length === 0 ? (
+                            <div className="flex-1 flex items-center justify-center text-sm text-center px-2" style={{ color: 'var(--muted)' }}>No locator types in this period.</div>
                         ) : (
                             <div className="w-full" style={{ height: '250px' }}>
                                 <ResponsiveContainer width="100%" height="100%">
@@ -292,7 +468,7 @@ export default function DashboardOverview() {
                     <div className="md:col-span-3 card p-6 shadow-sm">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>Recent Activity</h2>
-                            {history.length > 5 && (
+                            {filteredHistory.length > 5 && (
                                 <Link href="/history" className="text-sm text-amber-500 hover:text-amber-400 font-medium">View All →</Link>
                             )}
                         </div>
@@ -301,6 +477,8 @@ export default function DashboardOverview() {
                             <div className="py-8 text-center text-sm" style={{ color: 'var(--muted)' }}>Loading recent activity...</div>
                         ) : history.length === 0 ? (
                             <div className="py-8 text-center text-sm" style={{ color: 'var(--muted)' }}>No recent searches found.</div>
+                        ) : filteredHistory.length === 0 ? (
+                            <div className="py-8 text-center text-sm" style={{ color: 'var(--muted)' }}>No searches in the selected period.</div>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
@@ -314,7 +492,7 @@ export default function DashboardOverview() {
                                         </tr>
                                     </thead>
                                     <tbody className="text-sm">
-                                        {history.slice(0, 5).map((entry) => (
+                                        {filteredHistory.slice(0, 5).map((entry) => (
                                             <tr key={entry._id} className="border-b last:border-0 hover:bg-black/5 dark:hover:bg-white/5 transition-colors" style={{ borderColor: 'var(--card-border)' }}>
                                                 <td className="py-4 pr-4">
                                                     <span className="font-medium px-2 py-1 rounded bg-black/5 dark:bg-white/10" style={{ color: 'var(--foreground)' }}>
@@ -328,6 +506,9 @@ export default function DashboardOverview() {
                                                     <span className="text-xs font-semibold px-2 py-1 rounded-full border shrink-0" style={{ borderColor: 'var(--card-border)', color: 'var(--muted)' }}>
                                                         {entry.locatorType}
                                                     </span>
+                                                </td>
+                                                <td className="py-4 pr-4 text-center hidden sm:table-cell tabular-nums" style={{ color: 'var(--muted)' }}>
+                                                    {entry.results.length}
                                                 </td>
                                                 <td className="py-3 text-right">
                                                     <Link 
